@@ -26,7 +26,7 @@ st.title("📰 Nestor Insight Dashboard")
 try:
     stats = fetch_stats()
 except Exception as e:
-    st.error(f"无法连接 API（{API_BASE}）：{e}\n\n请先运行：`uvicorn app.api.main:app --port 8000`")
+    st.error(f"Cannot connect to API ({API_BASE}): {e}\n\nPlease start the API first: `uvicorn app.api.main:app --port 8000`")
     st.stop()
 
 # ── 统计卡片 ──────────────────────────────────────────────────────────────────
@@ -37,10 +37,10 @@ positive_pct = round(by_sentiment.get("positive", 0) / total * 100, 1) if total 
 negative_pct = round(by_sentiment.get("negative", 0) / total * 100, 1) if total else 0
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("总文章数", total)
-c2.metric("平均重要性", f"{avg_imp:.1f} / 10")
-c3.metric("正面情绪", f"{positive_pct}%")
-c4.metric("负面情绪", f"{negative_pct}%")
+c1.metric("Total Articles", total)
+c2.metric("Avg Importance", f"{avg_imp:.1f} / 10")
+c3.metric("Positive", f"{positive_pct}%")
+c4.metric("Negative", f"{negative_pct}%")
 
 st.divider()
 
@@ -48,46 +48,43 @@ st.divider()
 col_left, col_right = st.columns(2)
 
 with col_left:
-    st.subheader("文章分类分布")
+    st.subheader("Event Type Distribution")
     by_type = stats.get("by_event_type", {})
     if by_type:
         st.bar_chart(by_type)
     else:
-        st.info("暂无数据")
+        st.info("No data available")
 
 with col_right:
-    st.subheader("情绪分布")
+    st.subheader("Sentiment Distribution")
     if by_sentiment:
-        # st.plotly_chart not available without plotly; use native pie via altair-free workaround
         labels = list(by_sentiment.keys())
         values = list(by_sentiment.values())
-        pie_data = {"情绪": labels, "数量": values}
         import pandas as pd
-        df_pie = pd.DataFrame(pie_data)
+        df_pie = pd.DataFrame({"Sentiment": labels, "Count": values})
         st.dataframe(
-            df_pie.set_index("情绪"),
+            df_pie.set_index("Sentiment"),
             use_container_width=True,
         )
-        # simple visual fallback: progress bars
         for label, val in zip(labels, values):
             pct = val / total if total else 0
-            st.progress(pct, text=f"{label}：{val} 篇（{pct*100:.1f}%）")
+            st.progress(pct, text=f"{label}: {val} articles ({pct*100:.1f}%)")
     else:
-        st.info("暂无数据")
+        st.info("No data available")
 
 st.divider()
 
 # ── 筛选区 ────────────────────────────────────────────────────────────────────
-st.subheader("文章列表")
+st.subheader("Article List")
 
 f1, f2 = st.columns(2)
 with f1:
     category_options = ["All", "technology", "politics", "business", "science", "other"]
-    selected_category = st.selectbox("分类", category_options)
+    selected_category = st.selectbox("Category", category_options)
 
 with f2:
     sentiment_options = ["All", "positive", "negative", "neutral"]
-    selected_sentiment = st.selectbox("情绪", sentiment_options)
+    selected_sentiment = st.selectbox("Sentiment", sentiment_options)
 
 category_param = None if selected_category == "All" else selected_category
 sentiment_param = None if selected_sentiment == "All" else selected_sentiment
@@ -96,15 +93,15 @@ sentiment_param = None if selected_sentiment == "All" else selected_sentiment
 try:
     articles = fetch_events(category_param, sentiment_param)
 except Exception as e:
-    st.error(f"加载文章失败：{e}")
+    st.error(f"Failed to load articles: {e}")
     articles = []
 
 articles_sorted = sorted(articles, key=lambda x: x.get("importance") or 0, reverse=True)
 
 if not articles_sorted:
-    st.info("没有符合条件的文章。")
+    st.info("No articles found.")
 else:
-    st.caption(f"共 {len(articles_sorted)} 篇")
+    st.caption(f"{len(articles_sorted)} articles found")
     for article in articles_sorted:
         importance = article.get("importance") or 0
         sentiment = article.get("sentiment") or "unknown"
@@ -113,11 +110,11 @@ else:
         with st.container(border=True):
             col_main, col_meta = st.columns([4, 1])
             with col_main:
-                st.markdown(f"**{article.get('title', '(无标题)')}**")
+                st.markdown(f"**{article.get('title', '(no title)')}**")
                 summary = article.get("one_line_summary")
                 if summary:
                     st.caption(summary)
             with col_meta:
                 st.markdown(f"{sentiment_emoji} {sentiment}")
-                st.markdown(f"重要性 **{importance}**/10")
+                st.markdown(f"Importance **{importance}**/10")
                 st.caption(article.get("source") or "")
