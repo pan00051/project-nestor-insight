@@ -12,10 +12,16 @@ load_dotenv()
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 RSS_FEEDS = [
-    {"name": "Reuters Technology", "url": "https://feeds.reuters.com/reuters/technologyNews"},
-    {"name": "BBC News", "url": "http://feeds.bbci.co.uk/news/rss.xml"},
     {"name": "TechCrunch", "url": "https://techcrunch.com/feed/"},
     {"name": "Hacker News", "url": "https://hnrss.org/frontpage"},
+    {"name": "The Verge", "url": "https://www.theverge.com/rss/index.xml"},
+    {"name": "Wired", "url": "https://www.wired.com/feed/rss"},
+    {"name": "MIT Technology Review", "url": "https://www.technologyreview.com/feed/"},
+    {"name": "VentureBeat", "url": "https://venturebeat.com/feed/"},
+    {"name": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index"},
+    {"name": "TechRepublic", "url": "https://www.techrepublic.com/rssfeeds/articles/"},
+    {"name": "ZDNet", "url": "https://www.zdnet.com/news/rss.xml"},
+    {"name": "InfoQ", "url": "https://feed.infoq.com"},
 ]
 
 
