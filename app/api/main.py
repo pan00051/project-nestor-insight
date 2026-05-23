@@ -13,7 +13,7 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 app = FastAPI(title="Nestor Insight API", version="0.1.0")
 
-ARTICLE_FIELDS = "id,title,source,published_at,event_type,sentiment,importance,entities,one_line_summary"
+ARTICLE_FIELDS = "id,title,url,source,published_at,event_type,sentiment,importance,entities,one_line_summary"
 
 
 # ---------- Models ----------
