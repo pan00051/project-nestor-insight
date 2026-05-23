@@ -22,8 +22,9 @@ def fetch_events(category: str | None, sentiment: str | None, limit: int = 100) 
 
 
 # ── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Nestor Insight", page_icon="📰", layout="wide")
-st.title("📰 Nestor Insight Dashboard")
+st.set_page_config(page_title="Nestor Insight", page_icon="🔍", layout="wide")
+st.title("🔍 AI Industry Signal Monitoring")
+st.caption("Structured AI industry monitoring and explainable signal analysis")
 
 try:
     stats = fetch_stats()
@@ -31,7 +32,7 @@ except Exception as e:
     st.error(f"Cannot connect to API ({API_BASE}): {e}\n\nPlease start the API first: `uvicorn app.api.main:app --port 8000`")
     st.stop()
 
-# ── 统计卡片 ──────────────────────────────────────────────────────────────────
+# ── Metrics ───────────────────────────────────────────────────────────────────
 total = stats.get("total", 0)
 avg_imp = stats.get("avg_importance") or 0
 by_sentiment = stats.get("by_sentiment", {})
@@ -46,7 +47,7 @@ c4.metric("Negative", f"{negative_pct}%")
 
 st.divider()
 
-# ── 图表 ──────────────────────────────────────────────────────────────────────
+# ── Charts ────────────────────────────────────────────────────────────────────
 col_left, col_right = st.columns(2)
 
 with col_left:
@@ -76,12 +77,12 @@ with col_right:
 
 st.divider()
 
-# ── 筛选区 ────────────────────────────────────────────────────────────────────
-st.subheader("Article List")
+# ── Filters & article list ────────────────────────────────────────────────────
+st.subheader("High Relevance Signals")
 
 f1, f2 = st.columns(2)
 with f1:
-    category_options = ["All", "technology", "politics", "business", "science", "other"]
+    category_options = ["technology", "All", "politics", "business", "science", "other"]
     selected_category = st.selectbox("Category", category_options)
 
 with f2:
@@ -91,7 +92,7 @@ with f2:
 category_param = None if selected_category == "All" else selected_category
 sentiment_param = None if selected_sentiment == "All" else selected_sentiment
 
-# ── 文章列表 ──────────────────────────────────────────────────────────────────
+# ── Article list ──────────────────────────────────────────────────────────────
 try:
     articles = fetch_events(category_param, sentiment_param)
 except Exception as e:
@@ -116,6 +117,9 @@ else:
                 summary = article.get("one_line_summary")
                 if summary:
                     st.caption(summary)
+                url = article.get("url", "")
+                if url:
+                    st.markdown(f"[Read full article →]({url})")
             with col_meta:
                 st.markdown(f"{sentiment_emoji} {sentiment}")
                 st.markdown(f"Importance **{importance}**/10")

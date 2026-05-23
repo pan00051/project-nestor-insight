@@ -86,8 +86,8 @@ uvicorn app.api.main:app --port 8000
 streamlit run app/dashboard/streamlit_app.py
 ```
 
-Dashboard: run locally at http://localhost:8501  
-API docs: run locally at http://localhost:8000/docs
+Dashboard: https://pan00051appio-pqyrbnk2v6hdj8sqzl9rsp.streamlit.app
+API docs: https://web-production-ee21e.up.railway.app/docs
 
 ## API Endpoints
 
