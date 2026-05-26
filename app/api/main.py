@@ -11,7 +11,7 @@ load_dotenv()
 
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
-app = FastAPI(title="Nestor Insight API", version="0.1.0")
+app = FastAPI(title="Nestor Insight API", version="0.2.0")
 
 ARTICLE_FIELDS = "id,title,url,source,published_at,event_type,sentiment,importance,entities,one_line_summary"
 
