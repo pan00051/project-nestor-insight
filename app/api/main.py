@@ -48,7 +48,7 @@ class StatsResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 @app.get("/events", response_model=list[ArticleSummary])
