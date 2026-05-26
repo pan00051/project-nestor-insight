@@ -27,6 +27,7 @@ class ArticleSummary(BaseModel):
     sentiment: Optional[str]
     importance: Optional[int]
     entities: Optional[list[str]]
+    url: Optional[str]
     one_line_summary: Optional[str]
 
 
