@@ -13,7 +13,11 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 app = FastAPI(title="Nestor Insight API", version="0.2.0")
 
-ARTICLE_FIELDS = "id,title,url,source,published_at,event_type,sentiment,importance,entities,one_line_summary"
+ARTICLE_FIELDS = (
+    "id,title,url,source,published_at,event_type,sentiment,importance,entities,"
+    "one_line_summary,signal_type,why_it_matters,business_implication,"
+    "suggested_action,target_persona,urgency"
+)
 
 
 # ---------- Models ----------
@@ -29,6 +33,12 @@ class ArticleSummary(BaseModel):
     entities: Optional[list[str]]
     url: Optional[str]
     one_line_summary: Optional[str]
+    signal_type: Optional[str]
+    why_it_matters: Optional[str]
+    business_implication: Optional[str]
+    suggested_action: Optional[str]
+    target_persona: Optional[str]
+    urgency: Optional[int]
 
 
 class ArticleFull(ArticleSummary):
@@ -42,6 +52,7 @@ class StatsResponse(BaseModel):
     total: int
     avg_importance: Optional[float]
     by_event_type: dict[str, int]
+    by_signal_type: dict[str, int]
     by_sentiment: dict[str, int]
 
 
@@ -79,13 +90,14 @@ def list_events(
 def get_stats():
     result = (
         supabase.table("articles")
-        .select("event_type,sentiment,importance")
+        .select("event_type,signal_type,sentiment,importance")
         .not_.is_("analyzed_at", "null")
         .execute()
     )
     rows = result.data
 
     by_event_type: dict[str, int] = {}
+    by_signal_type: dict[str, int] = {}
     by_sentiment: dict[str, int] = {}
     importance_sum = 0
     importance_count = 0
@@ -93,6 +105,9 @@ def get_stats():
     for row in rows:
         et = row.get("event_type") or "unknown"
         by_event_type[et] = by_event_type.get(et, 0) + 1
+
+        signal_type = row.get("signal_type") or "unknown"
+        by_signal_type[signal_type] = by_signal_type.get(signal_type, 0) + 1
 
         s = row.get("sentiment") or "unknown"
         by_sentiment[s] = by_sentiment.get(s, 0) + 1
@@ -106,6 +121,7 @@ def get_stats():
         total=len(rows),
         avg_importance=round(importance_sum / importance_count, 2) if importance_count else None,
         by_event_type=by_event_type,
+        by_signal_type=by_signal_type,
         by_sentiment=by_sentiment,
     )
 

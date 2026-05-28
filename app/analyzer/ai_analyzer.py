@@ -13,7 +13,8 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 claude = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 PROMPT_TEMPLATE = """\
-Analyze the following news article and return ONLY a JSON object with no other text.
+Analyze the following AI industry news article as a business development and market intelligence signal.
+Return ONLY a JSON object with no other text.
 
 Title: {title}
 Summary: {summary}
@@ -24,7 +25,13 @@ Return this exact JSON structure:
   "sentiment": "<one of: positive, negative, neutral>",
   "importance": <integer 1-10>,
   "entities": ["<name>", "..."],
-  "one_line_summary": "<max 20 words in English>"
+  "one_line_summary": "<max 20 words in English>",
+  "signal_type": "<one of: funding_event, product_launch, leadership_change, market_expansion, partnership, hiring_growth, regulatory_risk, competitor_move, enterprise_adoption, security_incident, pricing_change, research_breakthrough, other>",
+  "why_it_matters": "<one sentence explaining why this signal matters>",
+  "business_implication": "<one sentence explaining the likely market or BD implication>",
+  "suggested_action": "<one short action a BD, product, or market analysis team should take>",
+  "target_persona": "<one of: founder, product_leader, sales_leader, marketing_leader, investor, analyst, engineer, policy_leader, other>",
+  "urgency": <integer 1-10>
 }}"""
 
 
@@ -35,7 +42,7 @@ def analyze_article(title: str, summary: str) -> dict:
     )
     message = claude.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=256,
+        max_tokens=700,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = message.content[0].text.strip()
@@ -50,7 +57,7 @@ def run_analysis():
     result = (
         supabase.table("articles")
         .select("id, title, summary")
-        .is_("analyzed_at", "null")
+        .or_("analyzed_at.is.null,signal_type.is.null")
         .order("id")
         .execute()
     )
@@ -58,10 +65,10 @@ def run_analysis():
     total = len(articles)
 
     if total == 0:
-        print("没有待分析的文章。")
+        print("没有待分析或待升级的文章。")
         return
 
-    print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始分析，共 {total} 篇\n")
+    print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始分析/升级，共 {total} 篇\n")
 
     success, failed = 0, 0
     for i, article in enumerate(articles, 1):
@@ -78,6 +85,12 @@ def run_analysis():
                     "importance": analysis.get("importance"),
                     "entities": analysis.get("entities", []),
                     "one_line_summary": analysis.get("one_line_summary"),
+                    "signal_type": analysis.get("signal_type"),
+                    "why_it_matters": analysis.get("why_it_matters"),
+                    "business_implication": analysis.get("business_implication"),
+                    "suggested_action": analysis.get("suggested_action"),
+                    "target_persona": analysis.get("target_persona"),
+                    "urgency": analysis.get("urgency"),
                     "analyzed_at": datetime.now(timezone.utc).isoformat(),
                 }
             ).eq("id", article_id).execute()

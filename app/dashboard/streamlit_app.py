@@ -51,8 +51,8 @@ st.divider()
 col_left, col_right = st.columns(2)
 
 with col_left:
-    st.subheader("Event Type Distribution")
-    by_type = stats.get("by_event_type", {})
+    st.subheader("Signal Type Distribution")
+    by_type = stats.get("by_signal_type") or stats.get("by_event_type", {})
     if by_type:
         st.bar_chart(by_type)
     else:
@@ -99,7 +99,11 @@ except Exception as e:
     st.error(f"Failed to load articles: {e}")
     articles = []
 
-articles_sorted = sorted(articles, key=lambda x: x.get("importance") or 0, reverse=True)
+articles_sorted = sorted(
+    articles,
+    key=lambda x: (x.get("urgency") or 0, x.get("importance") or 0),
+    reverse=True,
+)
 
 if not articles_sorted:
     st.info("No articles found.")
@@ -107,6 +111,7 @@ else:
     st.caption(f"{len(articles_sorted)} articles found")
     for article in articles_sorted:
         importance = article.get("importance") or 0
+        urgency = article.get("urgency") or 0
         sentiment = article.get("sentiment") or "unknown"
         sentiment_emoji = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}.get(sentiment, "⚪")
 
@@ -117,10 +122,26 @@ else:
                 summary = article.get("one_line_summary")
                 if summary:
                     st.caption(summary)
+                signal_type = article.get("signal_type")
+                if signal_type:
+                    st.markdown(f"**Signal:** `{signal_type}`")
+                why_it_matters = article.get("why_it_matters")
+                if why_it_matters:
+                    st.markdown(f"**Why it matters:** {why_it_matters}")
+                business_implication = article.get("business_implication")
+                if business_implication:
+                    st.markdown(f"**Business implication:** {business_implication}")
+                suggested_action = article.get("suggested_action")
+                if suggested_action:
+                    st.markdown(f"**Suggested action:** {suggested_action}")
                 url = article.get("url", "")
                 if url:
                     st.markdown(f"[Read full article →]({url})")
             with col_meta:
                 st.markdown(f"{sentiment_emoji} {sentiment}")
+                st.markdown(f"Urgency **{urgency}**/10")
                 st.markdown(f"Importance **{importance}**/10")
+                target_persona = article.get("target_persona")
+                if target_persona:
+                    st.caption(f"Target: {target_persona}")
                 st.caption(article.get("source") or "")
