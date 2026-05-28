@@ -1,54 +1,66 @@
 # Nestor Insight
-> AI-powered news intelligence platform — automatically collects, analyzes, and visualizes public news events.
+AI-powered BD and market signal intelligence for the AI industry.
 
-## What it does
+## What It Does
 
-Nestor Insight is an MVP that turns raw news into structured intelligence:
+Nestor Insight automatically monitors 10 AI industry news sources and uses Claude AI to extract structured business signals from every article. Each signal goes beyond headlines — it includes a concise explanation of why it matters, what the business implication is, a suggested action for your team, and the target persona it's most relevant to. The result is an actionable intelligence feed, not a news aggregator.
 
-1. **Collect** — Fetches articles from RSS feeds (BBC, TechCrunch, Hacker News) every run
-2. **Analyze** — Uses Claude AI to classify each article: event type, sentiment, importance score (1–10), key entities, one-line summary
-3. **Store** — Persists structured results in PostgreSQL (Supabase)
-4. **Visualize** — Streamlit dashboard with filters, charts, and ranked article list
+## Live Demo
 
-## Architecture
+Dashboard: https://pan00051appio-pqyrbnk2v6hdj8sqzl9rsp.streamlit.app  
+API docs: https://web-production-ee21e.up.railway.app/docs
+
+## Screenshot
+
+![Dashboard](docs/screenshot.png)
+
+## Example Signal Flow
 
 ```
-RSS Feeds → rss_collector.py → Supabase (PostgreSQL)
-                                      ↓
-                            ai_analyzer.py (Claude API)
-                                      ↓
-                            FastAPI (/events, /stats)
-                                      ↓
-                          Streamlit Dashboard
+OpenAI releases new flagship model
+↓ Signal Type: competitor_move
+↓ Why it matters: Shifts enterprise AI procurement decisions across the market
+↓ Business implication: Increased competitive pressure on existing AI vendors and tooling providers
+↓ Suggested action: Monitor enterprise customer sentiment and evaluate positioning against new capabilities
+↓ Target persona: product_leader | Urgency: 8/10
 ```
+
+## How It Works
+
+```
+RSS Feeds (10 AI industry sources)
+        ↓
+   News Ingestion
+        ↓
+  Claude AI Analysis
+        ↓
+Signal Structuring
+  - signal_type
+  - why_it_matters
+  - business_implication
+  - suggested_action
+  - target_persona
+  - urgency
+        ↓
+  FastAPI Backend
+        ↓
+Streamlit Dashboard
+```
+
+## Signal Types
+
+`funding_event` · `product_launch` · `leadership_change` · `market_expansion` · `partnership` · `hiring_growth` · `regulatory_risk` · `competitor_move` · `enterprise_adoption` · `security_incident` · `pricing_change` · `research_breakthrough` · `other`
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Data collection | feedparser, httpx |
+| Data ingestion | feedparser, httpx |
 | AI analysis | Anthropic Claude (Haiku) |
 | Database | Supabase (PostgreSQL) |
 | API | FastAPI + Pydantic |
 | Dashboard | Streamlit |
-| Package management | uv |
-
-## Project Structure
-
-```
-nestor-insight/
-├── app/
-│   ├── collector/        # RSS fetching
-│   │   └── rss_collector.py
-│   ├── analyzer/         # AI analysis pipeline
-│   │   └── ai_analyzer.py
-│   ├── api/              # FastAPI endpoints
-│   │   └── main.py
-│   └── dashboard/        # Streamlit UI
-│       └── streamlit_app.py
-├── .env                  # API keys (not committed)
-└── pyproject.toml
-```
+| Deployment | Railway + Streamlit Cloud |
 
 ## Setup
 
@@ -73,39 +85,28 @@ ANTHROPIC_API_KEY=your_anthropic_key
 ## Usage
 
 ```bash
-# 1. Collect news
+# Collect news
 python -m app.collector.rss_collector
 
-# 2. Run AI analysis
+# Run AI analysis
 python -m app.analyzer.ai_analyzer
 
-# 3. Start API (Terminal 1)
+# Start API
 uvicorn app.api.main:app --port 8000
 
-# 4. Start Dashboard (Terminal 2)
+# Start Dashboard
 streamlit run app/dashboard/streamlit_app.py
 ```
 
-Dashboard: https://pan00051appio-pqyrbnk2v6hdj8sqzl9rsp.streamlit.app
-API docs: https://web-production-ee21e.up.railway.app/docs
-
-## API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /events` | List articles (filter by category, sentiment) |
-| `GET /events/stats` | Aggregated statistics |
-| `GET /events/{id}` | Single article detail |
-| `GET /health` | Health check |
-
 ## Roadmap
 
-- [ ] Scheduled auto-collection (APScheduler)
+- [ ] Automated scheduling (APScheduler)
 - [ ] Semantic search (pgvector + RAG)
-- [ ] Multi-source support (Twitter, Reddit)
-- [ ] Email/notification alerts
-- [ ] Deployment (Railway)
+- [ ] Company signal pages
+- [ ] Weekly BD intelligence digest
+- [ ] Multi-source expansion (LinkedIn, SEC filings)
 
 ## About
 
-Built as an AI PM portfolio project. Demonstrates end-to-end AI product development: data pipeline design, LLM integration, API architecture, and data visualization.
+Built as an AI PM portfolio project. Demonstrates end-to-end AI product development:
+signal intelligence design, LLM workflow integration, API architecture, and data visualization.
