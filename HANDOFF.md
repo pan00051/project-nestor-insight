@@ -1,6 +1,6 @@
 # HANDOFF — Nestor Insight · Sprint 2 M4
 
-> **Read this file AND `streamlit_app.py` before doing anything.**
+> **Read this file AND `app/dashboard/streamlit_app.py` before doing anything.**
 > Files (git) are the source of truth; this document is background + decisions.
 > Do **one milestone (or one feature) per session**. Commit & push before closing.
 > **Update the "Milestone Status" section at the end of every session.**
@@ -14,7 +14,7 @@ the user finds goal-relevant AI-market signals in **under 10 seconds**.
 
 ## 2. Hard constraints (do not violate)
 
-- Edit **`streamlit_app.py` only.** Do NOT touch the database, the analyzer's core logic, or the main API surface.
+- Edit **`app/dashboard/streamlit_app.py` only.** Do NOT touch the database, the analyzer's core logic, or the main API surface.
 - `plotly` is **optional**. If not used, fall back to Streamlit-native charts. Do not hard-depend on it.
 - **No new backend fields.** Everything is built from data that already exists.
 
@@ -45,15 +45,17 @@ the user finds goal-relevant AI-market signals in **under 10 seconds**.
 - **Signal Action Card footer:** `source · published_date · Read full article`. **No source count.**
 - **Sentiment shown once:** remove the global sentiment chart (do this in M4.2). Keep the tone KPI (scoped) + per-card sentiment.
 
-## 5. Central state scaffold (already in place from M4.0)
+## 5. Central state scaffold (in `app/dashboard/streamlit_app.py`)
 
 ```python
 st.session_state.view = {
-    "meta_view":    "top_signals",   # cross-cutting overlay, not a category
-    "signal_types": [],              # single taxonomy = signal_type
-    "sentiment":    None,
-    "search_query": "",
-    # inclusion via MIN_URGENCY / MIN_IMPORTANCE (OR), NOT a sum threshold
+    "meta_view":     "top_signals",   # cross-cutting overlay, not a category
+    "signal_types":  [],              # single taxonomy = signal_type
+    "sentiment":     None,
+    "search_query":  "",
+    "min_urgency":   7,               # OR logic — either alone qualifies
+    "min_importance": 7,
+    "show_all":      False,           # True = bypass priority filter, show all 264
 }
 ```
 `apply_filters()` is the **single** filtering entry point. Every downstream feature (search, pills, lens chart, panels, cards) reads this one state object.
@@ -63,8 +65,8 @@ st.session_state.view = {
 - **M4.0 — Decisions & Setup** ✅ DONE
   Data audit + locked decisions + central state scaffold + filter bug fixed + verified locally (OR = 119/264 ✅, old sum≥14 = 92 confirming the bug ✅, New(24h) = 0 is the true current state ✅).
 
-- **M4.1 — Filtering & data layer** (mostly folded into the M4.0 scaffold)
-  Confirm the landing view shows the ranked high-value set (119), not all 264. Small.
+- **M4.1 — Filtering & data layer** ✅ DONE
+  Default landing renders 119 high-priority signals (urgency≥7 OR importance≥7), sorted by priority_score desc. "View all signals" toggle expands to all 264. Verified locally (119 ✅, sort desc ✅, show_all=264 ✅). HANDOFF file-path refs updated to `app/dashboard/streamlit_app.py`.
 
 - **M4.2 — Entry points**
   Focus Search ("What are you tracking?") = local keyword match over `title / one_line_summary / entities`; Quick View pills wired to state; define search↔pill rule (only one active narrowing at a time); **remove the global sentiment chart** here.
@@ -90,11 +92,11 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
 
 ## 8. Session workflow (repeat every time)
 
-1. Open a fresh session → first message: "Read `HANDOFF.md` and `streamlit_app.py`, then implement **[only this milestone/feature]**."
+1. Open a fresh session → first message: "Read `HANDOFF.md` and `app/dashboard/streamlit_app.py`, then implement **[only this milestone/feature]**."
 2. Build one milestone (split further if large).
 3. `commit && push`.
 4. Update Section 6 (mark done, note anything learned).
 5. Close the session.
 
 ---
-*Last updated: end of M4.0 (filter bug fixed & verified; pending push).*
+*Last updated: end of M4.1 (default landing = 119, toggle for all 264, verified & pushed).*

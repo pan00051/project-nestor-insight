@@ -89,9 +89,15 @@ def init_state():
             # filter thresholds — OR logic: either condition alone qualifies
             "min_urgency":   MIN_URGENCY,     # default 7
             "min_importance": MIN_IMPORTANCE, # default 7
+            "show_all":      False,           # True = bypass priority filter, show all 264
         }
 
 init_state()
+
+
+def _toggle_show_all():
+    st.session_state.view["show_all"] = st.session_state._show_all_toggle
+
 
 # ── Data fetching ─────────────────────────────────────────────────────────────
 
@@ -114,17 +120,18 @@ def apply_filters(articles: list[dict]) -> list[dict]:
     view = st.session_state.view
     out = articles
 
-    # Meta-view filter
-    meta = META_VIEWS.get(view["meta_view"], {})
-    if meta.get("high_priority_or"):
-        # Default view: urgency >= min_urgency OR importance >= min_importance
-        mu = view.get("min_urgency", MIN_URGENCY)
-        mi = view.get("min_importance", MIN_IMPORTANCE)
-        out = [a for a in out if (a.get("urgency") or 0) >= mu or (a.get("importance") or 0) >= mi]
-    if "signal_types" in meta:
-        out = [a for a in out if a.get("signal_type") in meta["signal_types"]]
+    # Meta-view filter (skipped when show_all is active)
+    if not view.get("show_all"):
+        meta = META_VIEWS.get(view["meta_view"], {})
+        if meta.get("high_priority_or"):
+            # urgency >= MIN_URGENCY OR importance >= MIN_IMPORTANCE  (119/264)
+            mu = view.get("min_urgency", MIN_URGENCY)
+            mi = view.get("min_importance", MIN_IMPORTANCE)
+            out = [a for a in out if (a.get("urgency") or 0) >= mu or (a.get("importance") or 0) >= mi]
+        if "signal_types" in meta:
+            out = [a for a in out if a.get("signal_type") in meta["signal_types"]]
 
-    # Manual signal_type override (from pill clicks, future M4.1)
+    # Manual signal_type override (from pill clicks, future M4.2)
     if view["signal_types"]:
         out = [a for a in out if a.get("signal_type") in view["signal_types"]]
 
@@ -225,10 +232,23 @@ with col_right:
 
 st.divider()
 
-# ── Signal list (placeholder — M4.1 will replace with full UI) ───────────────
+# ── Signal list ──────────────────────────────────────────────────────────────
 
 st.subheader("High Relevance Signals")
-st.caption(f"{view_total} signals in current view")
+
+col_hdr, col_toggle = st.columns([3, 1])
+with col_hdr:
+    if st.session_state.view.get("show_all"):
+        st.caption(f"All {view_total} signals · sorted by priority score")
+    else:
+        st.caption(f"{view_total} high-priority signals (urgency ≥ 7 or importance ≥ 7) · sorted by priority score")
+with col_toggle:
+    st.toggle(
+        "View all signals",
+        value=st.session_state.view.get("show_all", False),
+        key="_show_all_toggle",
+        on_change=_toggle_show_all,
+    )
 
 for article in filtered_articles:
     importance = article.get("importance") or 0
