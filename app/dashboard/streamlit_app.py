@@ -439,13 +439,12 @@ st.markdown(
 
       .nestor-title {
         color: var(--nestor-ink);
-        font-size: 3.2rem;
-        font-weight: 820;
-        line-height: 1.14;
+        font-size: 3.35rem;
+        font-weight: 720;
+        line-height: 1.1;
         letter-spacing: 0;
         margin: 0;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-          "Segoe UI", sans-serif;
+        font-family: Georgia, "Times New Roman", ui-serif, serif;
       }
 
       .nestor-title .brand-word {
