@@ -68,8 +68,8 @@ st.session_state.view = {
 - **M4.1 — Filtering & data layer** ✅ DONE
   Default landing renders 119 high-priority signals (urgency≥7 OR importance≥7), sorted by priority_score desc. "View all signals" toggle expands to all 264. Verified locally (119 ✅, sort desc ✅, show_all=264 ✅). HANDOFF file-path refs updated to `app/dashboard/streamlit_app.py`.
 
-- **M4.2 — Entry points**
-  Focus Search ("What are you tracking?") = local keyword match over `title / one_line_summary / entities`; Quick View pills wired to state; define search↔pill rule (only one active narrowing at a time); **remove the global sentiment chart** here.
+- **M4.2 — Entry points** ✅ DONE
+  Focus Search wired to `search_query` (matches title + one_line_summary + entities). Quick View pills: meta-views (Top Signals, BD Opps) set `meta_view`; signal-type pills (Regulatory Risk, Competitor Moves, Funding & Startups, Product Launches) set `signal_types`. Search↔pill mutual exclusion enforced in callbacks. Global sentiment chart removed. Verified: default=119 ✅, search narrows ✅, pills narrow correctly ✅, mutual exclusion ✅.
 
 - **M4.3 — Signal Action Card**
   Re-lay-out results as action cards using existing fields (`signal_type, target_persona, urgency, why_it_matters, business_implication, suggested_action`); footer `source · published_date · Read full article`; urgency color reads "act now" (accent), not "danger/error".
@@ -99,4 +99,4 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
 5. Close the session.
 
 ---
-*Last updated: end of M4.1 (default landing = 119, toggle for all 264, verified & pushed).*
+*Last updated: end of M4.2 (Focus Search + Quick View pills; sentiment chart removed; verified & pushed).*

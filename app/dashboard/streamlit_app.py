@@ -16,19 +16,15 @@ LOCKED DECISIONS (M4.0)
 ─────────────────────────────────────────────────────────────────────────────────────
 DEFAULT FILTER  : urgency >= 7 OR importance >= 7  (119/264 = 45% of corpus)
                   NOTE: filter and sort use separate logic — do NOT conflate them.
-DEFAULT SORT    : priority_score = urgency + importance, descending (equal weight;
-                  urgency captures time-sensitivity, importance captures strategic weight)
-TAXONOMY        : signal_type is the ONE taxonomy used everywhere (pills + lens chart).
-                  Meta-views ("Top Signals", "BD Opportunities") are cross-cutting
-                  overlays, NOT separate categories.
-RANKING VOCAB   : urgency = time-sensitive immediacy (1–10)
-                  importance = strategic weight (1–10)
+DEFAULT SORT    : priority_score = urgency + importance, descending (equal weight)
+TAXONOMY        : signal_type is the ONE taxonomy (pills + lens chart).
+                  Meta-views (top_signals, bd_opps) are cross-cutting overlays only.
+RANKING VOCAB   : urgency = immediacy · importance = strategic weight
                   priority_score = urgency + importance (sort key only, max 20)
-                  "High Priority" KPI count = articles where urgency>=7 OR importance>=7
-KPI CARD SWAP   : "Avg Importance" → "High Priority" (count of signals ≥ threshold)
-                  "Positive Tone" KPI is scoped to current view, not global corpus.
-SIGNAL CARD FOOTER: source · published_date · Read full article link (no source count)
-SENTIMENT       : shown once (in KPI + per-card); global sentiment chart removed.
+KPI CARD SWAP   : "Avg Importance" → "High Priority" (count via is_high_priority())
+                  "Positive Tone" scoped to current view.
+SIGNAL CARD FOOTER: source · published_date · Read full article (no source count)
+SENTIMENT       : shown once (KPI + per-card); global sentiment chart removed M4.2.
 """
 
 import os
@@ -41,15 +37,16 @@ import streamlit as st
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
-# Default view filter (locked M4.0): OR logic — either dimension alone qualifies
+# Default view filter (OR logic — either dimension alone qualifies)
 # urgency >= 7 OR importance >= 7  →  119/264 articles (45%)
 MIN_URGENCY = 7
 MIN_IMPORTANCE = 7
 
-# High Priority KPI count uses same OR threshold
+
 def is_high_priority(article: dict) -> bool:
     return (article.get("urgency") or 0) >= MIN_URGENCY or \
            (article.get("importance") or 0) >= MIN_IMPORTANCE
+
 
 # Signal taxonomy — single source of truth for pills, lens chart, and filters
 SIGNAL_TAXONOMY = [
@@ -68,13 +65,21 @@ SIGNAL_TAXONOMY = [
     "other",
 ]
 
-# Meta-views (cross-cutting lenses, NOT taxonomy categories)
+# True meta-views: cross-cutting overlays (not signal-type categories)
 META_VIEWS = {
-    "top_signals":    {"label": "Top Signals",       "high_priority_or": True},
-    "bd_opps":        {"label": "BD Opportunities",  "signal_types": ["partnership", "enterprise_adoption", "market_expansion", "funding_event"]},
-    "regulatory":     {"label": "Regulatory Risk",   "signal_types": ["regulatory_risk"]},
-    "competitor":     {"label": "Competitor Moves",  "signal_types": ["competitor_move"]},
-    "funding":        {"label": "Funding & Startups","signal_types": ["funding_event", "market_expansion"]},
+    "top_signals": {"label": "Top Signals",      "high_priority_or": True},
+    "bd_opps":     {"label": "BD Opportunities", "signal_types": ["partnership", "enterprise_adoption", "market_expansion", "funding_event"]},
+}
+
+# Ordered pill options — meta-views first, then signal-type filters
+# Meta pills set meta_view; signal pills set signal_types (via PILL_OPTIONS config)
+PILL_OPTIONS = {
+    "Top Signals":        {"type": "meta",   "meta_key": "top_signals"},
+    "BD Opportunities":   {"type": "meta",   "meta_key": "bd_opps"},
+    "Regulatory Risk":    {"type": "signal", "signal_type": "regulatory_risk"},
+    "Competitor Moves":   {"type": "signal", "signal_type": "competitor_move"},
+    "Funding & Startups": {"type": "signal", "signal_type": "funding_event"},
+    "Product Launches":   {"type": "signal", "signal_type": "product_launch"},
 }
 
 # ── Central state (single source of truth for all filters) ───────────────────
@@ -82,22 +87,61 @@ META_VIEWS = {
 def init_state():
     if "view" not in st.session_state:
         st.session_state.view = {
-            "meta_view":     "top_signals",   # active meta-view key from META_VIEWS
-            "signal_types":  [],              # [] = all types; list[str] = filter to these
-            "sentiment":     None,            # None = all; "positive"/"negative"/"neutral"
-            "search_query":  "",              # free-text search against title + entities
-            # filter thresholds — OR logic: either condition alone qualifies
-            "min_urgency":   MIN_URGENCY,     # default 7
-            "min_importance": MIN_IMPORTANCE, # default 7
-            "show_all":      False,           # True = bypass priority filter, show all 264
+            "meta_view":      "top_signals",  # overlay key from META_VIEWS
+            "signal_types":   [],             # [] = all; list[str] = filter to these
+            "sentiment":      None,           # None = all
+            "search_query":   "",             # free-text over title + summary + entities
+            "min_urgency":    MIN_URGENCY,    # OR logic — either alone qualifies
+            "min_importance": MIN_IMPORTANCE,
+            "show_all":       False,          # True = bypass priority filter
         }
 
-init_state()
+
+def _active_pill() -> str:
+    """Return the pill label that reflects current session_state.view."""
+    view = st.session_state.view
+    if view["signal_types"]:
+        stype = view["signal_types"][0]
+        for label, cfg in PILL_OPTIONS.items():
+            if cfg.get("signal_type") == stype:
+                return label
+    for label, cfg in PILL_OPTIONS.items():
+        if cfg.get("type") == "meta" and cfg.get("meta_key") == view["meta_view"]:
+            return label
+    return "Top Signals"
+
+
+def _on_search_change():
+    q = st.session_state["_search_input"]
+    st.session_state.view["search_query"] = q
+    if q.strip():
+        # Search is now the active narrowing — reset pill to default overlay
+        st.session_state.view["meta_view"] = "top_signals"
+        st.session_state.view["signal_types"] = []
+        st.session_state["_pill_selector"] = "Top Signals"
+
+
+def _on_pill_change():
+    label = st.session_state["_pill_selector"]
+    if label is None:
+        return
+    # Pill clears search (only one narrowing active at a time)
+    st.session_state.view["search_query"] = ""
+    st.session_state["_search_input"] = ""
+    cfg = PILL_OPTIONS.get(label, {})
+    if cfg.get("type") == "meta":
+        st.session_state.view["meta_view"] = cfg["meta_key"]
+        st.session_state.view["signal_types"] = []
+    elif cfg.get("type") == "signal":
+        st.session_state.view["signal_types"] = [cfg["signal_type"]]
+        st.session_state.view["meta_view"] = "top_signals"
 
 
 def _toggle_show_all():
     st.session_state.view["show_all"] = st.session_state._show_all_toggle
 
+
+init_state()
 
 # ── Data fetching ─────────────────────────────────────────────────────────────
 
@@ -116,7 +160,7 @@ def fetch_all_events(limit: int = 264) -> list[dict]:
 
 
 def apply_filters(articles: list[dict]) -> list[dict]:
-    """Apply current view_state filters and return sorted articles."""
+    """Single filtering entry point — every feature reads session_state.view."""
     view = st.session_state.view
     out = articles
 
@@ -124,14 +168,13 @@ def apply_filters(articles: list[dict]) -> list[dict]:
     if not view.get("show_all"):
         meta = META_VIEWS.get(view["meta_view"], {})
         if meta.get("high_priority_or"):
-            # urgency >= MIN_URGENCY OR importance >= MIN_IMPORTANCE  (119/264)
             mu = view.get("min_urgency", MIN_URGENCY)
             mi = view.get("min_importance", MIN_IMPORTANCE)
             out = [a for a in out if (a.get("urgency") or 0) >= mu or (a.get("importance") or 0) >= mi]
         if "signal_types" in meta:
             out = [a for a in out if a.get("signal_type") in meta["signal_types"]]
 
-    # Manual signal_type override (from pill clicks, future M4.2)
+    # Signal-type pill override (always applied, independent of show_all)
     if view["signal_types"]:
         out = [a for a in out if a.get("signal_type") in view["signal_types"]]
 
@@ -139,22 +182,23 @@ def apply_filters(articles: list[dict]) -> list[dict]:
     if view["sentiment"]:
         out = [a for a in out if a.get("sentiment") == view["sentiment"]]
 
-    # Search filter (title + entities)
+    # Search filter: title + one_line_summary + entities (substring, case-insensitive)
     q = view["search_query"].strip().lower()
     if q:
         def matches(a):
             if q in (a.get("title") or "").lower():
                 return True
-            entities = a.get("entities") or []
-            return any(q in e.lower() for e in entities)
+            if q in (a.get("one_line_summary") or "").lower():
+                return True
+            return any(q in e.lower() for e in (a.get("entities") or []))
         out = [a for a in out if matches(a)]
 
-    # Sort by priority_score descending
+    # Sort by priority_score descending (sort key only, never an inclusion gate)
     out = sorted(out, key=lambda a: (a.get("urgency") or 0) + (a.get("importance") or 0), reverse=True)
     return out
 
 
-# ── Page config ───────────────────────────────────────────────────────────────
+# ── Page setup ────────────────────────────────────────────────────────────────
 
 st.set_page_config(page_title="Nestor Insight", page_icon="🔍", layout="wide")
 st.title("🔍 AI Industry Signal Monitoring")
@@ -176,22 +220,38 @@ except Exception as e:
     st.error(f"Failed to load articles: {e}")
     all_articles = []
 
+# ── Search + pills (rendered before apply_filters so callbacks fire first) ────
+
+st.text_input(
+    "What are you tracking?",
+    placeholder="AI agents, OpenAI, regulation, funding, enterprise adoption...",
+    key="_search_input",
+    on_change=_on_search_change,
+)
+
+st.pills(
+    "Quick View",
+    options=list(PILL_OPTIONS.keys()),
+    default=_active_pill(),
+    key="_pill_selector",
+    on_change=_on_pill_change,
+    label_visibility="collapsed",
+)
+
+# Apply filters after search/pill callbacks have updated session_state.view
 filtered_articles = apply_filters(all_articles)
 
 # ── KPI cards ─────────────────────────────────────────────────────────────────
 
 total = stats.get("total", 0)
-by_sentiment = stats.get("by_sentiment", {})
 high_priority_count = sum(1 for a in all_articles if is_high_priority(a))
 
-# "New today" = published_at within last 24h
 cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 new_today = sum(
     1 for a in all_articles
     if a.get("published_at") and datetime.fromisoformat(a["published_at"]) >= cutoff
 )
 
-# Positive tone scoped to current filtered view
 view_total = len(filtered_articles)
 view_positive = sum(1 for a in filtered_articles if a.get("sentiment") == "positive")
 view_positive_pct = round(view_positive / view_total * 100, 1) if view_total else 0
@@ -204,31 +264,14 @@ c4.metric("Positive Tone", f"{view_positive_pct}%", help="Scoped to current view
 
 st.divider()
 
-# ── Charts ────────────────────────────────────────────────────────────────────
+# ── Signal Type Distribution (sentiment chart removed M4.2) ───────────────────
 
-col_left, col_right = st.columns(2)
-
-with col_left:
-    st.subheader("Signal Type Distribution")
-    by_signal = stats.get("by_signal_type") or stats.get("by_event_type", {})
-    if by_signal:
-        st.bar_chart(by_signal)
-    else:
-        st.info("No data available")
-
-with col_right:
-    st.subheader("Sentiment Distribution")
-    if by_sentiment:
-        import pandas as pd
-        labels = list(by_sentiment.keys())
-        values = list(by_sentiment.values())
-        df_sentiment = pd.DataFrame({"Sentiment": labels, "Count": values})
-        st.dataframe(df_sentiment.set_index("Sentiment"), use_container_width=True)
-        for label, val in zip(labels, values):
-            pct = val / total if total else 0
-            st.progress(pct, text=f"{label}: {val} articles ({pct*100:.1f}%)")
-    else:
-        st.info("No data available")
+st.subheader("Signal Type Distribution")
+by_signal = stats.get("by_signal_type") or stats.get("by_event_type", {})
+if by_signal:
+    st.bar_chart(by_signal)
+else:
+    st.info("No data available")
 
 st.divider()
 
@@ -238,10 +281,14 @@ st.subheader("High Relevance Signals")
 
 col_hdr, col_toggle = st.columns([3, 1])
 with col_hdr:
-    if st.session_state.view.get("show_all"):
+    view = st.session_state.view
+    q = view.get("search_query", "")
+    if view.get("show_all"):
         st.caption(f"All {view_total} signals · sorted by priority score")
+    elif q:
+        st.caption(f"{view_total} results for \"{q}\" · sorted by priority score")
     else:
-        st.caption(f"{view_total} high-priority signals (urgency ≥ 7 or importance ≥ 7) · sorted by priority score")
+        st.caption(f"{view_total} signals · sorted by priority score")
 with col_toggle:
     st.toggle(
         "View all signals",
@@ -250,40 +297,43 @@ with col_toggle:
         on_change=_toggle_show_all,
     )
 
-for article in filtered_articles:
-    importance = article.get("importance") or 0
-    urgency = article.get("urgency") or 0
-    priority_score = urgency + importance
-    sentiment = article.get("sentiment") or "unknown"
-    sentiment_emoji = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}.get(sentiment, "⚪")
-    published = (article.get("published_at") or "")[:10]
+if not filtered_articles:
+    st.info("No signals match your current filters.")
+else:
+    for article in filtered_articles:
+        importance = article.get("importance") or 0
+        urgency = article.get("urgency") or 0
+        priority_score = urgency + importance
+        sentiment = article.get("sentiment") or "unknown"
+        sentiment_emoji = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}.get(sentiment, "⚪")
+        published = (article.get("published_at") or "")[:10]
 
-    with st.container(border=True):
-        col_main, col_meta = st.columns([4, 1])
-        with col_main:
-            st.markdown(f"**{article.get('title', '(no title)')}**")
-            summary = article.get("one_line_summary")
-            if summary:
-                st.caption(summary)
-            why = article.get("why_it_matters")
-            if why:
-                st.markdown(f"**Why it matters:** {why}")
-            implication = article.get("business_implication")
-            if implication:
-                st.markdown(f"**Business implication:** {implication}")
-            action = article.get("suggested_action")
-            if action:
-                st.markdown(f"**Suggested action:** {action}")
-            url = article.get("url", "")
-            source = article.get("source") or ""
-            st.caption(f"{source} · {published}" + (f" · [Read full article →]({url})" if url else ""))
-        with col_meta:
-            st.markdown(f"{sentiment_emoji} {sentiment}")
-            st.markdown(f"Score **{priority_score}**/20")
-            st.caption(f"U:{urgency} I:{importance}")
-            persona = article.get("target_persona")
-            if persona:
-                st.caption(persona)
-            signal_type = article.get("signal_type")
-            if signal_type:
-                st.caption(f"`{signal_type}`")
+        with st.container(border=True):
+            col_main, col_meta = st.columns([4, 1])
+            with col_main:
+                st.markdown(f"**{article.get('title', '(no title)')}**")
+                summary = article.get("one_line_summary")
+                if summary:
+                    st.caption(summary)
+                why = article.get("why_it_matters")
+                if why:
+                    st.markdown(f"**Why it matters:** {why}")
+                implication = article.get("business_implication")
+                if implication:
+                    st.markdown(f"**Business implication:** {implication}")
+                action = article.get("suggested_action")
+                if action:
+                    st.markdown(f"**Suggested action:** {action}")
+                url = article.get("url", "")
+                source = article.get("source") or ""
+                st.caption(f"{source} · {published}" + (f" · [Read full article →]({url})" if url else ""))
+            with col_meta:
+                st.markdown(f"{sentiment_emoji} {sentiment}")
+                st.markdown(f"Score **{priority_score}**/20")
+                st.caption(f"U:{urgency} I:{importance}")
+                persona = article.get("target_persona")
+                if persona:
+                    st.caption(persona)
+                signal_type = article.get("signal_type")
+                if signal_type:
+                    st.caption(f"`{signal_type}`")
