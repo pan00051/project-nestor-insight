@@ -90,8 +90,17 @@ Run the database migrations in the Supabase SQL Editor:
 ## Usage
 
 ```bash
-# Collect news
+# Preview all sources without writing
+python -m app.collector.rss_collector --dry-run
+
+# Collect all sources
 python -m app.collector.rss_collector
+
+# Inspect one source safely
+python -m app.collector.rss_collector \
+  --source "MIT Technology Review" \
+  --max-per-feed 10 \
+  --dry-run
 
 # Preview the next batch (no Claude calls or database writes)
 python -m app.analyzer.ai_analyzer --limit 100 --dry-run
@@ -111,6 +120,9 @@ filter before making paid Claude calls. Use `--include-low-relevance` only when
 you intentionally want to analyze every pending article. Use `--retry-failed`
 to retry failed API/validation attempts. Combine `--reprocess-skipped` with
 `--include-low-relevance` to deliberately reconsider previously skipped rows.
+
+The collector uses a 15-second timeout, three fetch attempts, connection reuse,
+batched URL/content-hash deduplication, and per-source health statistics.
 
 ## Roadmap
 

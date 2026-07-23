@@ -120,5 +120,21 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
   - M4 dashboard constraints in Sections 2–7 remain locked for dashboard work;
     this M5.1 milestone intentionally changes the collector/analyzer only.
 
+- **M5.2 — Resilient, observable RSS collection** ✅ DONE
+  - Collector now uses `httpx` with a 15-second timeout, redirects, a named
+    User-Agent, three attempts, and incremental retry backoff.
+  - One HTTP client is reused across the run. Existing URLs and content hashes
+    are queried in batches; new articles are written in batches with
+    row-isolation fallback if a batch fails.
+  - Added per-source status, fetched/new/duplicate/invalid counts, attempts,
+    duration, and final run totals.
+  - Added `--dry-run`, repeatable `--source`, and `--max-per-feed`.
+  - Production acceptance: all 10 feeds healthy on first attempt; 192 current
+    RSS entries inspected; 189 new `pending` rows inserted. Database after run:
+    453 total = 264 analyzed + 189 pending, zero duplicate hashes and URLs.
+  - A post-write dry-run classified 190/192 current entries as duplicates; two
+    fresh The Verge entries appeared between runs, confirming the feed changed
+    during acceptance rather than a database duplicate leak.
+
 ---
-*Last updated: Sprint 5 M5.1 (persistent analysis state + content identity; production migration verified).*
+*Last updated: Sprint 5 M5.2 (resilient RSS collection; 189 pending articles added and verified).*
