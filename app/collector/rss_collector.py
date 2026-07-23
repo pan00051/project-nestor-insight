@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import feedparser
 import httpx
@@ -23,6 +24,13 @@ USER_AGENT = (
     "(AI industry signal research; "
     "+https://github.com/pan00051/project-nestor-insight)"
 )
+TRACKING_QUERY_PARAMS = {
+    "fbclid",
+    "gclid",
+    "mc_cid",
+    "mc_eid",
+    "ref",
+}
 
 RSS_FEEDS = [
     {"name": "TechCrunch", "url": "https://techcrunch.com/feed/"},
@@ -91,6 +99,33 @@ def get_supabase_client():
 
 def normalize_title(value: str | None) -> str:
     return " ".join((value or "").split()).strip()
+
+
+def canonicalize_url(value: str | None) -> str:
+    raw_url = (value or "").strip()
+    if not raw_url:
+        return ""
+
+    parts = urlsplit(raw_url)
+    filtered_query = [
+        (key, query_value)
+        for key, query_value in parse_qsl(parts.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_")
+        and key.lower() not in TRACKING_QUERY_PARAMS
+    ]
+    normalized_path = parts.path or "/"
+    if normalized_path != "/":
+        normalized_path = normalized_path.rstrip("/")
+
+    return urlunsplit(
+        (
+            parts.scheme.lower(),
+            parts.netloc.lower(),
+            normalized_path,
+            urlencode(filtered_query, doseq=True),
+            "",
+        )
+    )
 
 
 def normalize_datetime(value: datetime) -> datetime:
@@ -165,7 +200,7 @@ def fetch_feed(
 
 
 def build_article(entry, feed_name: str, feed_url: str) -> dict | None:
-    url = (entry.get("link") or "").strip()
+    url = canonicalize_url(entry.get("link"))
     title = normalize_title(entry.get("title"))
     if not url or not title:
         return None

@@ -6,6 +6,7 @@ import httpx
 from app.collector.rss_collector import (
     FeedFetchError,
     article_content_hash,
+    canonicalize_url,
     collect_feed,
     fetch_feed,
     select_feeds,
@@ -116,6 +117,14 @@ class FakeCollectorSupabase:
 
 
 class CollectorIdentityTests(unittest.TestCase):
+    def test_canonicalize_url_removes_tracking_and_fragment(self):
+        self.assertEqual(
+            canonicalize_url(
+                "HTTPS://Example.COM/news/?utm_source=x&id=42#section"
+            ),
+            "https://example.com/news?id=42",
+        )
+
     def test_hash_normalizes_title_whitespace_and_case(self):
         published_at = datetime(2026, 7, 23, 12, tzinfo=timezone.utc)
         first = article_content_hash(

@@ -49,6 +49,20 @@ TARGET_PERSONAS = (
     "policy_leader",
     "other",
 )
+EVENT_TYPE_FALLBACKS = {
+    "funding_event": "business",
+    "product_launch": "technology",
+    "leadership_change": "business",
+    "market_expansion": "business",
+    "partnership": "business",
+    "hiring_growth": "business",
+    "regulatory_risk": "politics",
+    "competitor_move": "business",
+    "enterprise_adoption": "business",
+    "security_incident": "technology",
+    "pricing_change": "business",
+    "research_breakthrough": "science",
+}
 
 # Strong terms can qualify an article alone. Supporting terms need a combination.
 STRONG_AI_TERMS = (
@@ -114,7 +128,10 @@ Return this exact JSON structure:
   "suggested_action": "<one short action a BD, product, or market analysis team should take>",
   "target_persona": "<one of: founder, product_leader, sales_leader, marketing_leader, investor, analyst, engineer, policy_leader, other>",
   "urgency": <integer 1-10>
-}}"""
+}}
+
+Important: event_type is the broad news domain. Never put a signal_type value
+such as "security_incident" or "product_launch" in event_type."""
 
 
 class _TextExtractor(HTMLParser):
@@ -280,6 +297,18 @@ def extract_json_object(raw: str) -> dict:
     return json.loads(clean_raw[start : end + 1])
 
 
+def normalize_analysis_payload(payload: dict) -> dict:
+    normalized = dict(payload)
+    event_type = normalized.get("event_type")
+    if isinstance(event_type, str):
+        clean_event_type = event_type.strip().lower()
+        normalized["event_type"] = EVENT_TYPE_FALLBACKS.get(
+            clean_event_type,
+            clean_event_type,
+        )
+    return normalized
+
+
 def analyze_article(
     title: str,
     summary: str,
@@ -301,7 +330,8 @@ def analyze_article(
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = message.content[0].text
-            validated = AnalysisResult.model_validate(extract_json_object(raw))
+            payload = normalize_analysis_payload(extract_json_object(raw))
+            validated = AnalysisResult.model_validate(payload)
             return validated.model_dump()
         except Exception as exc:
             last_error = exc

@@ -9,6 +9,7 @@ from app.analyzer.ai_analyzer import (
     analyze_article,
     article_quality_issue,
     fetch_analysis_batch,
+    normalize_analysis_payload,
     persist_skip_decisions,
     relevance_score,
     run_analysis,
@@ -193,6 +194,16 @@ class AnalyzerQualityTests(unittest.TestCase):
         invalid = {**VALID_ANALYSIS, "importance": 11}
         with self.assertRaises(ValidationError):
             AnalysisResult.model_validate(invalid)
+
+    def test_signal_type_misplaced_in_event_type_is_mapped(self):
+        payload = normalize_analysis_payload(
+            {
+                **VALID_ANALYSIS,
+                "event_type": "security_incident",
+            }
+        )
+        result = AnalysisResult.model_validate(payload)
+        self.assertEqual(result.event_type, "technology")
 
     def test_analyze_article_parses_fenced_json(self):
         fake_claude = FakeClaude(f"```json\n{__import__('json').dumps(VALID_ANALYSIS)}\n```")

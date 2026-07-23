@@ -136,5 +136,31 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
     fresh The Verge entries appeared between runs, confirming the feed changed
     during acceptance rather than a database duplicate leak.
 
+- **M5.3 — Controlled historical backfill** ✅ DONE
+  - Added `app/collector/wordpress_backfill.py` for production historical
+    discovery through the TechCrunch public WordPress archive.
+  - Added `app/collector/historical_backfill.py` as an experimental secondary
+    source through the GDELT DOC API.
+  - TechCrunch works newest-to-oldest by archive page; GDELT uses bounded date
+    windows and reports saturated windows. Both default to preview-only, stop
+    at a target row count, retry transient failures and rate limits, and exit
+    nonzero when a page/window or database write fails.
+  - Historical candidates reuse the collector's canonical URL, content hash,
+    batched database deduplication, and resilient write path.
+  - Local title/summary relevance keeps broad archive results out of the paid
+    analysis queue. Written rows remain `pending` until the analyzer runs.
+  - GDELT live preview was blocked by a persistent shared-IP HTTP 429; no
+    GDELT rows were written. The TechCrunch endpoint was healthy and reported
+    5,142 matching archive rows for the default search.
+  - Production acceptance used a 25-row preview and write pilot before scaling.
+    The full run inspected 1,700 archive results across 17 pages and inserted
+    the remaining 975 rows with zero failed pages or writes.
+  - Final production audit: 1,453 total rows = 329 analyzed + 124 skipped +
+    1,000 pending. The archive import has zero duplicate URLs, zero duplicate
+    hashes, zero missing required fields, and zero missing summaries. Published
+    dates span 2021-11-16 through 2026-07-22.
+  - Analyzer dry-run sampled the first 25 pending rows: all 25 entered the
+    analysis queue, with no Claude calls or database writes.
+
 ---
-*Last updated: Sprint 5 M5.2 (resilient RSS collection; 189 pending articles added and verified).*
+*Last updated: Sprint 5 M5.3 (1,000 historical articles imported and verified).*
