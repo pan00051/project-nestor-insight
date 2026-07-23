@@ -28,8 +28,10 @@ SENTIMENT       : shown once (KPI + per-card); global sentiment chart removed M4
 """
 
 import os
+import base64
 from collections import Counter
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 import altair as alt
 import pandas as pd
@@ -39,6 +41,7 @@ import streamlit as st
 # ── Config ────────────────────────────────────────────────────────────────────
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+LOGO_PATH = Path(__file__).parent / "assets" / "nestor_logo.png"
 
 # Default view filter (OR logic — either dimension alone qualifies)
 # urgency >= 7 OR importance >= 7  →  119/264 articles (45%)
@@ -120,6 +123,10 @@ def _chip(text: str, accent: bool = False) -> str:
         f'border-radius:999px;font-size:0.75rem;font-weight:{weight};white-space:nowrap">'
         f'{text}</span>'
     )
+
+
+def logo_data_uri() -> str:
+    return "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
 
 
 def render_card(article: dict) -> None:
@@ -390,31 +397,88 @@ st.set_page_config(page_title="Nestor Insight", page_icon="🔍", layout="wide")
 st.markdown(
     """
     <style>
-      .block-container {
-        padding-top: 2.25rem;
+      :root {
+        --nestor-ink: #2F3038;
+        --nestor-muted: #6B7280;
+        --nestor-soft: #8A8F9D;
+        --nestor-bronze: #9A6A35;
+        --nestor-bronze-dark: #6F4A24;
       }
 
-      h1 {
-        line-height: 1.05;
-        margin-bottom: 0.35rem;
+      .block-container {
+        padding-top: 1.75rem;
+        max-width: 1180px;
+      }
+
+      html, body, [class*="css"] {
+        color: var(--nestor-ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      h2, h3 {
+        color: var(--nestor-ink);
+        letter-spacing: 0;
+      }
+
+      .nestor-brand {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin: 0.15rem 0 0.75rem 0;
+      }
+
+      .nestor-logo {
+        width: 4.85rem;
+        height: 4.85rem;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+
+      .nestor-title {
+        color: var(--nestor-ink);
+        font-size: 3.35rem;
+        font-weight: 760;
+        line-height: 0.98;
+        letter-spacing: 0;
+        margin: 0;
       }
 
       .nestor-hero-copy {
-        color: #6B7280;
+        color: var(--nestor-muted);
         font-size: 1.02rem;
         line-height: 1.28;
-        margin: 0 0 1.15rem 0;
+        margin: 0.45rem 0 1.1rem 0;
+      }
+
+      div[data-testid="stMetricLabel"] {
+        color: var(--nestor-ink);
+        font-weight: 650;
+      }
+
+      div[data-testid="stMetricValue"] {
+        color: var(--nestor-ink);
+        letter-spacing: 0;
+      }
+
+      .stCaption, div[data-testid="stCaptionContainer"] {
+        color: var(--nestor-muted);
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
-st.title("🔍 Nestor Insight")
 st.markdown(
-    """
-    <div class="nestor-hero-copy">
-      AI industry signal intelligence for BD and market analysis<br>
-      Turn AI industry noise into actionable market signals.
+    f"""
+    <div class="nestor-brand">
+      <img class="nestor-logo" src="{logo_data_uri()}" alt="Nestor Insight logo">
+      <div>
+        <div class="nestor-title">Nestor Insight</div>
+        <div class="nestor-hero-copy">
+          AI industry signal intelligence for BD and market analysis<br>
+          Turn AI industry noise into actionable market signals.
+        </div>
+      </div>
     </div>
     """,
     unsafe_allow_html=True,
