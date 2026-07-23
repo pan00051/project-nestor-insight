@@ -318,8 +318,11 @@ def fetch_analysis_batch(
     limit: int,
     min_relevance: int,
     include_low_relevance: bool = False,
-) -> tuple[list[dict], dict[str, int]]:
+    retry_failed: bool = False,
+    reprocess_skipped: bool = False,
+) -> tuple[list[dict], dict[str, int], list[dict]]:
     selected: list[dict] = []
+    status_updates: list[dict] = []
     seen_titles: set[str] = set()
     stats = {
         "scanned": 0,
@@ -328,12 +331,17 @@ def fetch_analysis_batch(
         "low_relevance": 0,
     }
     offset = 0
+    queue_statuses = ["pending"]
+    if retry_failed:
+        queue_statuses.append("failed")
+    if reprocess_skipped:
+        queue_statuses.append("skipped")
 
     while len(selected) < limit:
         result = (
             supabase_client.table("articles")
-            .select("id, title, summary")
-            .or_("analyzed_at.is.null,signal_type.is.null")
+            .select("id, title, summary, analysis_attempts")
+            .in_("analysis_status", queue_statuses)
             .order("id")
             .range(offset, offset + FETCH_PAGE_SIZE - 1)
             .execute()
@@ -347,6 +355,14 @@ def fetch_analysis_batch(
             issue = article_quality_issue(article)
             if issue:
                 stats["invalid"] += 1
+                status_updates.append(
+                    {
+                        "id": article["id"],
+                        "analysis_status": "skipped",
+                        "relevance_score": None,
+                        "skip_reason": issue,
+                    }
+                )
                 continue
 
             score, matches = relevance_score(
@@ -355,11 +371,30 @@ def fetch_analysis_batch(
             )
             if score < min_relevance and not include_low_relevance:
                 stats["low_relevance"] += 1
+                status_updates.append(
+                    {
+                        "id": article["id"],
+                        "analysis_status": "skipped",
+                        "relevance_score": score,
+                        "skip_reason": (
+                            f"AI relevance score {score} is below "
+                            f"threshold {min_relevance}"
+                        ),
+                    }
+                )
                 continue
 
             title_key = normalize_title(article.get("title")).casefold()
             if title_key in seen_titles:
                 stats["duplicate_title"] += 1
+                status_updates.append(
+                    {
+                        "id": article["id"],
+                        "analysis_status": "skipped",
+                        "relevance_score": score,
+                        "skip_reason": "duplicate normalized title in analysis queue",
+                    }
+                )
                 continue
             seen_titles.add(title_key)
 
@@ -377,21 +412,58 @@ def fetch_analysis_batch(
             break
         offset += FETCH_PAGE_SIZE
 
-    return selected, stats
+    return selected, stats, status_updates
+
+
+def persist_skip_decisions(supabase_client, status_updates: list[dict]) -> tuple[int, int]:
+    saved = 0
+    failed = 0
+    attempted_at = datetime.now(timezone.utc).isoformat()
+
+    for status_update in status_updates:
+        article_id = status_update["id"]
+        payload = {
+            key: value
+            for key, value in status_update.items()
+            if key != "id"
+        }
+        payload.update(
+            {
+                "analysis_error": None,
+                "analysis_attempted_at": attempted_at,
+            }
+        )
+        try:
+            (
+                supabase_client.table("articles")
+                .update(payload)
+                .eq("id", article_id)
+                .execute()
+            )
+            saved += 1
+        except Exception as exc:
+            failed += 1
+            print(f"  Could not persist skip state for id={article_id}: {exc}")
+
+    return saved, failed
 
 
 def run_analysis(
     limit: int = DEFAULT_BATCH_LIMIT,
     min_relevance: int = DEFAULT_MIN_RELEVANCE,
     include_low_relevance: bool = False,
+    retry_failed: bool = False,
+    reprocess_skipped: bool = False,
     dry_run: bool = False,
 ):
     supabase_client = get_supabase_client()
-    articles, stats = fetch_analysis_batch(
+    articles, stats, status_updates = fetch_analysis_batch(
         supabase_client=supabase_client,
         limit=limit,
         min_relevance=min_relevance,
         include_low_relevance=include_low_relevance,
+        retry_failed=retry_failed,
+        reprocess_skipped=reprocess_skipped,
     )
     total = len(articles)
 
@@ -403,12 +475,12 @@ def run_analysis(
         f"duplicate_title={stats['duplicate_title']}"
     )
 
-    if total == 0:
-        print("No relevant pending articles found.\n")
-        return
-
     if dry_run:
-        print(f"\nDry run: {total} article(s) would be analyzed; no API calls or writes.\n")
+        print(
+            f"\nDry run: {total} article(s) would be analyzed and "
+            f"{len(status_updates)} article(s) would be marked skipped; "
+            "no API calls or writes.\n"
+        )
         for i, article in enumerate(articles, 1):
             matches = ", ".join(article["_relevance_matches"][:4]) or "none"
             print(
@@ -416,6 +488,20 @@ def run_analysis(
                 f"| {article['title'][:70]} | matches: {matches}"
             )
         print()
+        return
+
+    saved_skips, failed_skips = persist_skip_decisions(
+        supabase_client,
+        status_updates,
+    )
+    if status_updates:
+        print(
+            f"Persisted skip decisions: saved={saved_skips}, "
+            f"failed={failed_skips}"
+        )
+
+    if total == 0:
+        print("No relevant queued articles found.\n")
         return
 
     claude_client = get_claude_client()
@@ -429,6 +515,8 @@ def run_analysis(
         article_id = article["id"]
         title = normalize_title(article.get("title"))
         summary = article.get("summary") or ""
+        attempt_count = int(article.get("analysis_attempts") or 0) + 1
+        attempted_at = datetime.now(timezone.utc).isoformat()
 
         try:
             analysis = analyze_article(
@@ -439,6 +527,12 @@ def run_analysis(
             supabase_client.table("articles").update(
                 {
                     **analysis,
+                    "analysis_status": "analyzed",
+                    "relevance_score": article["_relevance_score"],
+                    "skip_reason": None,
+                    "analysis_attempts": attempt_count,
+                    "analysis_error": None,
+                    "analysis_attempted_at": attempted_at,
                     "analyzed_at": datetime.now(timezone.utc).isoformat(),
                 }
             ).eq("id", article_id).execute()
@@ -450,7 +544,32 @@ def run_analysis(
             )
         except Exception as exc:
             failed += 1
-            print(f"  [{i}/{total}] FAILED id={article_id} | reason: {exc}")
+            error_message = str(exc)[:1000]
+            try:
+                (
+                    supabase_client.table("articles")
+                    .update(
+                        {
+                            "analysis_status": "failed",
+                            "relevance_score": article["_relevance_score"],
+                            "skip_reason": None,
+                            "analysis_attempts": attempt_count,
+                            "analysis_error": error_message,
+                            "analysis_attempted_at": attempted_at,
+                        }
+                    )
+                    .eq("id", article_id)
+                    .execute()
+                )
+            except Exception as status_exc:
+                error_message = (
+                    f"{error_message}; could not persist failed status: "
+                    f"{status_exc}"
+                )
+            print(
+                f"  [{i}/{total}] FAILED id={article_id} "
+                f"| reason: {error_message}"
+            )
 
         if i < total:
             time.sleep(0.5)
@@ -497,6 +616,16 @@ def parse_args():
         help="include articles below the local relevance threshold",
     )
     parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="include previously failed articles in this batch",
+    )
+    parser.add_argument(
+        "--reprocess-skipped",
+        action="store_true",
+        help="re-evaluate previously skipped articles",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="preview the selected batch without Claude calls or database writes",
@@ -510,5 +639,7 @@ if __name__ == "__main__":
         limit=args.limit,
         min_relevance=args.min_relevance,
         include_low_relevance=args.include_low_relevance,
+        retry_failed=args.retry_failed,
+        reprocess_skipped=args.reprocess_skipped,
         dry_run=args.dry_run,
     )

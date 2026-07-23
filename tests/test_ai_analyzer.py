@@ -9,7 +9,9 @@ from app.analyzer.ai_analyzer import (
     analyze_article,
     article_quality_issue,
     fetch_analysis_batch,
+    persist_skip_decisions,
     relevance_score,
+    run_analysis,
     strip_html,
 )
 
@@ -59,6 +61,9 @@ class FakeArticleQuery:
     def or_(self, *_args):
         return self
 
+    def in_(self, *_args):
+        return self
+
     def order(self, *_args):
         return self
 
@@ -74,6 +79,82 @@ class FakeArticleQuery:
 class FakeSupabase:
     def __init__(self, articles):
         self.query = FakeArticleQuery(articles)
+
+    def table(self, _name):
+        return self.query
+
+
+class FakeStatusQuery:
+    def __init__(self):
+        self.saved = []
+        self.payload = None
+        self.article_id = None
+
+    def update(self, payload):
+        self.payload = payload
+        return self
+
+    def eq(self, _field, article_id):
+        self.article_id = article_id
+        return self
+
+    def execute(self):
+        self.saved.append((self.article_id, self.payload))
+        return SimpleNamespace(data=[{"id": self.article_id}])
+
+
+class FakeStatusSupabase:
+    def __init__(self):
+        self.query = FakeStatusQuery()
+
+    def table(self, _name):
+        return self.query
+
+
+class FakePipelineQuery:
+    def __init__(self, articles):
+        self.articles = articles
+        self.start = 0
+        self.end = 0
+        self.mode = "select"
+        self.pending_payload = None
+        self.pending_id = None
+        self.saved = []
+
+    def select(self, *_args):
+        self.mode = "select"
+        return self
+
+    def in_(self, *_args):
+        return self
+
+    def order(self, *_args):
+        return self
+
+    def range(self, start, end):
+        self.start = start
+        self.end = end
+        return self
+
+    def update(self, payload):
+        self.mode = "update"
+        self.pending_payload = payload
+        return self
+
+    def eq(self, _field, article_id):
+        self.pending_id = article_id
+        return self
+
+    def execute(self):
+        if self.mode == "update":
+            self.saved.append((self.pending_id, self.pending_payload))
+            return SimpleNamespace(data=[{"id": self.pending_id}])
+        return SimpleNamespace(data=self.articles[self.start : self.end + 1])
+
+
+class FakePipelineSupabase:
+    def __init__(self, articles):
+        self.query = FakePipelineQuery(articles)
 
     def table(self, _name):
         return self.query
@@ -150,7 +231,7 @@ class AnalyzerQualityTests(unittest.TestCase):
         ]
 
         with patch("app.analyzer.ai_analyzer.FETCH_PAGE_SIZE", 2):
-            selected, stats = fetch_analysis_batch(
+            selected, stats, status_updates = fetch_analysis_batch(
                 FakeSupabase(articles),
                 limit=10,
                 min_relevance=2,
@@ -161,6 +242,101 @@ class AnalyzerQualityTests(unittest.TestCase):
         self.assertEqual(stats["low_relevance"], 1)
         self.assertEqual(stats["duplicate_title"], 1)
         self.assertEqual(stats["invalid"], 1)
+        self.assertEqual(
+            [status_update["id"] for status_update in status_updates],
+            [1, 3, 4],
+        )
+        self.assertTrue(
+            all(
+                status_update["analysis_status"] == "skipped"
+                for status_update in status_updates
+            )
+        )
+
+    def test_persist_skip_decisions_writes_pipeline_state(self):
+        fake_supabase = FakeStatusSupabase()
+        saved, failed = persist_skip_decisions(
+            fake_supabase,
+            [
+                {
+                    "id": 12,
+                    "analysis_status": "skipped",
+                    "relevance_score": 0,
+                    "skip_reason": "below threshold",
+                }
+            ],
+        )
+
+        self.assertEqual((saved, failed), (1, 0))
+        article_id, payload = fake_supabase.query.saved[0]
+        self.assertEqual(article_id, 12)
+        self.assertEqual(payload["analysis_status"], "skipped")
+        self.assertIn("analysis_attempted_at", payload)
+
+    def test_run_analysis_persists_analyzed_state(self):
+        fake_supabase = FakePipelineSupabase(
+            [
+                {
+                    "id": 21,
+                    "title": "OpenAI launches a new enterprise model",
+                    "summary": "The AI release targets regulated teams.",
+                    "analysis_attempts": 0,
+                }
+            ]
+        )
+        fake_claude = FakeClaude(__import__("json").dumps(VALID_ANALYSIS))
+
+        with (
+            patch(
+                "app.analyzer.ai_analyzer.get_supabase_client",
+                return_value=fake_supabase,
+            ),
+            patch(
+                "app.analyzer.ai_analyzer.get_claude_client",
+                return_value=fake_claude,
+            ),
+            patch("app.analyzer.ai_analyzer.time.sleep"),
+        ):
+            run_analysis(limit=1)
+
+        article_id, payload = fake_supabase.query.saved[-1]
+        self.assertEqual(article_id, 21)
+        self.assertEqual(payload["analysis_status"], "analyzed")
+        self.assertEqual(payload["analysis_attempts"], 1)
+        self.assertIsNone(payload["analysis_error"])
+
+    def test_run_analysis_persists_failed_state(self):
+        fake_supabase = FakePipelineSupabase(
+            [
+                {
+                    "id": 22,
+                    "title": "Anthropic announces a new Claude model",
+                    "summary": "The AI model targets enterprise workflows.",
+                    "analysis_attempts": 2,
+                }
+            ]
+        )
+        fake_claude = FakeClaude("not-json")
+
+        with (
+            patch(
+                "app.analyzer.ai_analyzer.get_supabase_client",
+                return_value=fake_supabase,
+            ),
+            patch(
+                "app.analyzer.ai_analyzer.get_claude_client",
+                return_value=fake_claude,
+            ),
+            patch("app.analyzer.ai_analyzer.time.sleep"),
+        ):
+            run_analysis(limit=1)
+
+        article_id, payload = fake_supabase.query.saved[-1]
+        self.assertEqual(article_id, 22)
+        self.assertEqual(payload["analysis_status"], "failed")
+        self.assertEqual(payload["analysis_attempts"], 3)
+        self.assertIn("JSON object", payload["analysis_error"])
+        self.assertIsNone(payload["skip_reason"])
 
 
 if __name__ == "__main__":

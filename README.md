@@ -82,6 +82,11 @@ SUPABASE_KEY=your_supabase_key
 ANTHROPIC_API_KEY=your_anthropic_key
 ```
 
+Run the database migrations in the Supabase SQL Editor:
+
+1. `sql/sprint3_business_signals.sql`
+2. `sql/sprint5_analysis_state.sql`
+
 ## Usage
 
 ```bash
@@ -103,7 +108,9 @@ streamlit run app/dashboard/streamlit_app.py
 
 The analyzer defaults to a 100-article batch and uses a local AI-relevance
 filter before making paid Claude calls. Use `--include-low-relevance` only when
-you intentionally want to analyze every pending article.
+you intentionally want to analyze every pending article. Use `--retry-failed`
+to retry failed API/validation attempts. Combine `--reprocess-skipped` with
+`--include-low-relevance` to deliberately reconsider previously skipped rows.
 
 ## Roadmap
 

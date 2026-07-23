@@ -1,15 +1,13 @@
 import feedparser
 import hashlib
+import os
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
-from supabase import create_client
 from dotenv import load_dotenv
-import os
+from supabase import create_client
 
 load_dotenv()
-
-supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 RSS_FEEDS = [
     {"name": "TechCrunch", "url": "https://techcrunch.com/feed/"},
@@ -23,6 +21,26 @@ RSS_FEEDS = [
     {"name": "ZDNet", "url": "https://www.zdnet.com/news/rss.xml"},
     {"name": "InfoQ", "url": "https://feed.infoq.com"},
 ]
+
+
+def get_supabase_client():
+    return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+
+
+def normalize_title(value: str | None) -> str:
+    return " ".join((value or "").split()).strip()
+
+
+def article_content_hash(title: str, published_at: datetime | None) -> str:
+    if published_at is None:
+        published_date = ""
+    else:
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        published_date = published_at.astimezone(timezone.utc).date().isoformat()
+
+    hash_input = f"{normalize_title(title).lower()}|{published_date}"
+    return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
 
 def parse_published_at(entry) -> datetime | None:
@@ -43,7 +61,8 @@ def parse_published_at(entry) -> datetime | None:
     return None
 
 
-def collect_feed(feed_name: str, feed_url: str) -> int:
+def collect_feed(feed_name: str, feed_url: str, supabase_client=None) -> int:
+    client = supabase_client or get_supabase_client()
     print(f"  抓取: {feed_name}")
     parsed = feedparser.parse(feed_url)
 
@@ -59,19 +78,32 @@ def collect_feed(feed_name: str, feed_url: str) -> int:
             continue
 
         summary = entry.get("summary", "") or entry.get("description", "")
+        published_at = parse_published_at(entry) or datetime.now(timezone.utc)
+        content_hash = article_content_hash(title, published_at)
 
         article = {
             "title": title,
             "url": url,
             "source": feed_name,
             "feed_url": feed_url,
-            "published_at": (parse_published_at(entry) or datetime.now(timezone.utc)).isoformat(),
+            "published_at": published_at.isoformat(),
             "summary": summary[:2000] if summary else None,
+            "content_hash": content_hash,
         }
 
         try:
+            duplicate = (
+                client.table("articles")
+                .select("id")
+                .eq("content_hash", content_hash)
+                .limit(1)
+                .execute()
+            )
+            if duplicate.data:
+                continue
+
             result = (
-                supabase.table("articles")
+                client.table("articles")
                 .upsert(article, on_conflict="url", ignore_duplicates=True)
                 .execute()
             )
@@ -83,11 +115,12 @@ def collect_feed(feed_name: str, feed_url: str) -> int:
     return new_count
 
 
-def run_collection():
+def run_collection(supabase_client=None):
+    client = supabase_client or get_supabase_client()
     print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始抓取")
     total = 0
     for feed in RSS_FEEDS:
-        count = collect_feed(feed["name"], feed["url"])
+        count = collect_feed(feed["name"], feed["url"], supabase_client=client)
         print(f"    新增 {count} 条")
         total += count
     print(f"本轮共新增 {total} 条文章\n")

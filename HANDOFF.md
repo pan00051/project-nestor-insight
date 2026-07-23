@@ -101,5 +101,24 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
 4. Update Section 6 (mark done, note anything learned).
 5. Close the session.
 
+## 9. Sprint 5 data pipeline status
+
+- **M5.1 — Persistent analysis state & content identity** ✅ DONE
+  - Added `sql/sprint5_analysis_state.sql` and applied it to Supabase production.
+  - New fields: `analysis_status`, `relevance_score`, `skip_reason`,
+    `analysis_attempts`, `analysis_error`, `analysis_attempted_at`,
+    `content_hash`.
+  - Existing production audit after migration: 264 rows, all 264 marked
+    `analyzed`, all 264 hashes present, zero SQL/Python hash mismatches.
+  - Collector now generates a SHA-256 identity from normalized title + UTC
+    publication date and checks it before insertion.
+  - Analyzer reads the persistent status queue. Low-relevance, invalid, and
+    duplicate rows become `skipped`; successful rows become `analyzed`;
+    failures become `failed`.
+  - `--retry-failed` retries failed rows. `--reprocess-skipped` deliberately
+    rechecks skipped rows. Dry-run never persists state.
+  - M4 dashboard constraints in Sections 2–7 remain locked for dashboard work;
+    this M5.1 milestone intentionally changes the collector/analyzer only.
+
 ---
-*Last updated: end of M4.4 (Signal Lens donut + Keyword Relevance, both scoped to view; Altair; verified & pushed).*
+*Last updated: Sprint 5 M5.1 (persistent analysis state + content identity; production migration verified).*
