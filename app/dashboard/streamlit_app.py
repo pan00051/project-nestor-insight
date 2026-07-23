@@ -387,9 +387,38 @@ def apply_filters(articles: list[dict]) -> list[dict]:
 # ── Page setup ────────────────────────────────────────────────────────────────
 
 st.set_page_config(page_title="Nestor Insight", page_icon="🔍", layout="wide")
+st.markdown(
+    """
+    <style>
+      .block-container {
+        padding-top: 2.25rem;
+      }
+
+      h1 {
+        line-height: 1.05;
+        margin-bottom: 0.35rem;
+      }
+
+      .nestor-hero-copy {
+        color: #6B7280;
+        font-size: 1.02rem;
+        line-height: 1.28;
+        margin: 0 0 1.15rem 0;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.title("🔍 Nestor Insight")
-st.caption("AI industry signal intelligence for BD and market analysis")
-st.caption("Turn AI industry noise into actionable market signals.")
+st.markdown(
+    """
+    <div class="nestor-hero-copy">
+      AI industry signal intelligence for BD and market analysis<br>
+      Turn AI industry noise into actionable market signals.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 
