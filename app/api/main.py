@@ -18,6 +18,7 @@ ARTICLE_FIELDS = (
     "one_line_summary,signal_type,why_it_matters,business_implication,"
     "suggested_action,target_persona,urgency"
 )
+STATS_PAGE_SIZE = 500
 
 
 # ---------- Models ----------
@@ -88,13 +89,7 @@ def list_events(
 
 @app.get("/events/stats", response_model=StatsResponse)
 def get_stats():
-    result = (
-        supabase.table("articles")
-        .select("event_type,signal_type,sentiment,importance")
-        .not_.is_("analyzed_at", "null")
-        .execute()
-    )
-    rows = result.data
+    rows = fetch_all_stats_rows()
 
     by_event_type: dict[str, int] = {}
     by_signal_type: dict[str, int] = {}
@@ -124,6 +119,28 @@ def get_stats():
         by_signal_type=by_signal_type,
         by_sentiment=by_sentiment,
     )
+
+
+def fetch_all_stats_rows() -> list[dict]:
+    rows: list[dict] = []
+    offset = 0
+
+    while True:
+        result = (
+            supabase.table("articles")
+            .select("id,event_type,signal_type,sentiment,importance")
+            .not_.is_("analyzed_at", "null")
+            .order("id")
+            .range(offset, offset + STATS_PAGE_SIZE - 1)
+            .execute()
+        )
+        page = result.data if isinstance(result.data, list) else []
+        rows.extend(page)
+        if len(page) < STATS_PAGE_SIZE:
+            break
+        offset += STATS_PAGE_SIZE
+
+    return rows
 
 
 @app.get("/events/{article_id}", response_model=ArticleFull)

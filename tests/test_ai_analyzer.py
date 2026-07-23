@@ -205,6 +205,38 @@ class AnalyzerQualityTests(unittest.TestCase):
         result = AnalysisResult.model_validate(payload)
         self.assertEqual(result.event_type, "technology")
 
+    def test_legacy_security_event_type_is_mapped(self):
+        payload = normalize_analysis_payload(
+            {
+                **VALID_ANALYSIS,
+                "event_type": "security",
+            }
+        )
+        result = AnalysisResult.model_validate(payload)
+        self.assertEqual(result.event_type, "technology")
+
+    def test_unknown_signal_type_falls_back_to_other(self):
+        payload = normalize_analysis_payload(
+            {
+                **VALID_ANALYSIS,
+                "signal_type": "thought_leadership",
+            }
+        )
+        result = AnalysisResult.model_validate(payload)
+        self.assertEqual(result.signal_type, "other")
+
+    def test_known_signal_alias_and_mixed_sentiment_are_mapped(self):
+        payload = normalize_analysis_payload(
+            {
+                **VALID_ANALYSIS,
+                "signal_type": "partner_transition",
+                "sentiment": "mixed",
+            }
+        )
+        result = AnalysisResult.model_validate(payload)
+        self.assertEqual(result.signal_type, "partnership")
+        self.assertEqual(result.sentiment, "neutral")
+
     def test_analyze_article_parses_fenced_json(self):
         fake_claude = FakeClaude(f"```json\n{__import__('json').dumps(VALID_ANALYSIS)}\n```")
         result = analyze_article(

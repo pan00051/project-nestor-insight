@@ -50,6 +50,7 @@ TARGET_PERSONAS = (
     "other",
 )
 EVENT_TYPE_FALLBACKS = {
+    "security": "technology",
     "funding_event": "business",
     "product_launch": "technology",
     "leadership_change": "business",
@@ -62,6 +63,14 @@ EVENT_TYPE_FALLBACKS = {
     "security_incident": "technology",
     "pricing_change": "business",
     "research_breakthrough": "science",
+}
+SIGNAL_TYPE_FALLBACKS = {
+    "partner_transition": "partnership",
+    "thought_leadership": "other",
+    "leadership_statement": "other",
+}
+SENTIMENT_FALLBACKS = {
+    "mixed": "neutral",
 }
 
 # Strong terms can qualify an article alone. Supporting terms need a combination.
@@ -305,6 +314,24 @@ def normalize_analysis_payload(payload: dict) -> dict:
         normalized["event_type"] = EVENT_TYPE_FALLBACKS.get(
             clean_event_type,
             clean_event_type,
+        )
+
+    signal_type = normalized.get("signal_type")
+    if isinstance(signal_type, str):
+        clean_signal_type = signal_type.strip().lower()
+        normalized["signal_type"] = SIGNAL_TYPE_FALLBACKS.get(
+            clean_signal_type,
+            clean_signal_type
+            if clean_signal_type in SIGNAL_TYPES
+            else "other",
+        )
+
+    sentiment = normalized.get("sentiment")
+    if isinstance(sentiment, str):
+        clean_sentiment = sentiment.strip().lower()
+        normalized["sentiment"] = SENTIMENT_FALLBACKS.get(
+            clean_sentiment,
+            clean_sentiment,
         )
     return normalized
 

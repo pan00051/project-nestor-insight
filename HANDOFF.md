@@ -162,5 +162,25 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
   - Analyzer dry-run sampled the first 25 pending rows: all 25 entered the
     analysis queue, with no Claude calls or database writes.
 
+- **M5.4 — Staged historical analysis** ✅ DONE
+  - Ran a 100-row production pilot before scaling. Pilot result: 100/100
+    analyzed, zero failed, zero missing fields, valid score ranges, and no
+    summaries over 20 words.
+  - Processed the remaining queue serially through Claude Haiku. One duplicate
+    normalized title was skipped before an API call; 5 enum-validation failures
+    were isolated without interrupting the batch.
+  - Extended response normalization for model-produced signal aliases and
+    `mixed` sentiment, then retried all 5 failures successfully.
+  - Final production state: 1,453 total rows = 1,328 analyzed + 125 skipped;
+    pending=0 and failed=0. The 1,000-row archive import finished as 999
+    analyzed + 1 duplicate-title skip.
+  - Final audit: zero missing analysis fields, invalid importance/urgency
+    scores, over-length summaries, duplicate URLs, or duplicate hashes.
+    One legacy `event_type=security` row was normalized to `technology`; all
+    analyzed enum fields now conform to the current contract.
+  - `/events/stats` now paginates Supabase reads in 500-row pages so KPI and
+    chart totals remain accurate beyond the platform's default 1,000-row
+    response cap. The Dashboard's existing `/events` pagination is unchanged.
+
 ---
-*Last updated: Sprint 5 M5.3 (1,000 historical articles imported and verified).*
+*Last updated: Sprint 5 M5.4 (1,000 historical articles processed and verified).*
