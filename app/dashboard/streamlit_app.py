@@ -387,8 +387,9 @@ def apply_filters(articles: list[dict]) -> list[dict]:
 # ── Page setup ────────────────────────────────────────────────────────────────
 
 st.set_page_config(page_title="Nestor Insight", page_icon="🔍", layout="wide")
-st.title("🔍 AI Industry Signal Monitoring")
-st.caption("Find targeted AI market signals for BD and market analysis")
+st.title("🔍 Nestor Insight")
+st.caption("AI industry signal intelligence for BD and market analysis")
+st.caption("Turn AI industry noise into actionable market signals.")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 
@@ -409,14 +410,14 @@ except Exception as e:
 # ── Search + pills (rendered before apply_filters so callbacks fire first) ────
 
 st.text_input(
-    "What are you tracking?",
+    "What should Nestor watch?",
     placeholder="AI agents, OpenAI, regulation, funding, enterprise adoption...",
     key="_search_input",
     on_change=_on_search_change,
 )
 
 st.pills(
-    "Quick View",
+    "Intelligence Lens",
     options=list(PILL_OPTIONS.keys()),
     default=_active_pill(),
     key="_pill_selector",
@@ -443,10 +444,10 @@ view_positive = sum(1 for a in filtered_articles if a.get("sentiment") == "posit
 view_positive_pct = round(view_positive / view_total * 100, 1) if view_total else 0
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total Signals", total)
-c2.metric("High Priority", high_priority_count)
-c3.metric("New (24h)", new_today)
-c4.metric("Positive Tone", f"{view_positive_pct}%", help="Scoped to current view")
+c1.metric("Signal Corpus", total)
+c2.metric("Priority Signals", high_priority_count)
+c3.metric("New Signals (24h)", new_today)
+c4.metric("Market Tone", f"{view_positive_pct}% positive", help="Scoped to current view")
 
 st.divider()
 
@@ -455,8 +456,8 @@ st.divider()
 col_lens, col_kw = st.columns(2)
 
 with col_lens:
-    st.subheader("Signal Lens")
-    st.caption("Distribution of signal types in the current view")
+    st.subheader("Nestor Lens")
+    st.caption("Signal types shaping the current intelligence view")
     lens_labels, lens_counts = signal_lens_data(filtered_articles)
     if lens_labels:
         df_lens = pd.DataFrame({"Signal type": lens_labels, "Count": lens_counts})
@@ -476,8 +477,8 @@ with col_lens:
         st.info("No signals in the current view")
 
 with col_kw:
-    st.subheader("Keyword Relevance")
-    st.caption("Top entities mentioned across the current view")
+    st.subheader("Signal Drivers")
+    st.caption("Top entities and topics shaping the current signal set")
     keywords = keyword_relevance(filtered_articles)
     if keywords:
         df_kw = pd.DataFrame(keywords, columns=["Keyword", "Mentions"])
@@ -485,7 +486,7 @@ with col_kw:
             alt.Chart(df_kw)
             .mark_bar()
             .encode(
-                x=alt.X("Mentions:Q", title="Mentions in view"),
+                x=alt.X("Mentions:Q", title="Signal mentions"),
                 y=alt.Y("Keyword:N", sort="-x", title=None),
                 tooltip=["Keyword:N", "Mentions:Q"],
             )
@@ -499,7 +500,7 @@ st.divider()
 
 # ── Signal list ──────────────────────────────────────────────────────────────
 
-st.subheader("High Relevance Signals")
+st.subheader("Priority Intelligence")
 
 col_hdr, col_toggle = st.columns([3, 1])
 with col_hdr:
@@ -508,7 +509,7 @@ with col_hdr:
     if view.get("show_all"):
         st.caption(f"All {view_total} signals · sorted by priority score")
     elif q:
-        st.caption(f"{view_total} results for \"{q}\" · sorted by priority score")
+        st.caption(f"{view_total} signals matching \"{q}\" · sorted by priority score")
     else:
         st.caption(f"{view_total} signals · sorted by priority score")
 with col_toggle:
