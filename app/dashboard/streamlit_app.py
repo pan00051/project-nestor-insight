@@ -28,8 +28,11 @@ SENTIMENT       : shown once (KPI + per-card); global sentiment chart removed M4
 """
 
 import os
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 
+import altair as alt
+import pandas as pd
 import requests
 import streamlit as st
 
@@ -189,6 +192,52 @@ def render_card(article: dict) -> None:
                 footer += f" · [Read full article →]({url})"
             if footer:
                 st.caption(footer)
+
+
+# ── Visual-panel data helpers (pure; computed from the current view) ─────────
+
+def signal_lens_data(articles: list[dict], max_sectors: int = 8):
+    """Count signal_type across the given (view) articles, collapsed to <= max_sectors.
+
+    Returns (labels, counts) with human-readable labels. The lowest-frequency
+    types beyond the top (max_sectors - 1) are merged into a single "Other" sector.
+    Display-only (v1) — magnitude is fine; no drill-down.
+    """
+    counter = Counter(a.get("signal_type") or "other" for a in articles)
+    ranked = counter.most_common()
+    if len(ranked) <= max_sectors:
+        rows = ranked
+    else:
+        rows = ranked[: max_sectors - 1] + [("__other__", sum(c for _, c in ranked[max_sectors - 1 :]))]
+
+    labels, counts = [], []
+    for key, count in rows:
+        if key == "__other__":
+            labels.append("Other")
+        else:
+            labels.append(SIGNAL_TYPE_LABELS.get(key, key.replace("_", " ").title()))
+        counts.append(count)
+    return labels, counts
+
+
+def keyword_relevance(articles: list[dict], top_n: int = 12):
+    """Rank entities by how many articles in the current view mention them.
+
+    Tier 0 / local — no API. Frequency over the `entities` list (already tagged).
+    Ties broken by summed importance so higher-signal entities float up.
+    Returns list[(keyword, count)] descending.
+    """
+    freq: Counter = Counter()
+    weight: Counter = Counter()
+    for a in articles:
+        imp = a.get("importance") or 0
+        for e in (a.get("entities") or []):
+            e = (e or "").strip()
+            if e:
+                freq[e] += 1
+                weight[e] += imp
+    ranked = sorted(freq.items(), key=lambda kv: (kv[1], weight[kv[0]]), reverse=True)
+    return ranked[:top_n]
 
 
 # ── Central state (single source of truth for all filters) ───────────────────
@@ -401,14 +450,50 @@ c4.metric("Positive Tone", f"{view_positive_pct}%", help="Scoped to current view
 
 st.divider()
 
-# ── Signal Type Distribution (sentiment chart removed M4.2) ───────────────────
+# ── Visual panels: Signal Lens (donut) + Keyword Relevance — both scoped to view ──
 
-st.subheader("Signal Type Distribution")
-by_signal = stats.get("by_signal_type") or stats.get("by_event_type", {})
-if by_signal:
-    st.bar_chart(by_signal)
-else:
-    st.info("No data available")
+col_lens, col_kw = st.columns(2)
+
+with col_lens:
+    st.subheader("Signal Lens")
+    st.caption("Distribution of signal types in the current view")
+    lens_labels, lens_counts = signal_lens_data(filtered_articles)
+    if lens_labels:
+        df_lens = pd.DataFrame({"Signal type": lens_labels, "Count": lens_counts})
+        donut = (
+            alt.Chart(df_lens)
+            .mark_arc(innerRadius=65)
+            .encode(
+                theta=alt.Theta("Count:Q", stack=True),
+                color=alt.Color("Signal type:N", legend=alt.Legend(title=None, orient="right")),
+                order=alt.Order("Count:Q", sort="descending"),
+                tooltip=["Signal type:N", "Count:Q"],
+            )
+            .properties(height=300)
+        )
+        st.altair_chart(donut, use_container_width=True)
+    else:
+        st.info("No signals in the current view")
+
+with col_kw:
+    st.subheader("Keyword Relevance")
+    st.caption("Top entities mentioned across the current view")
+    keywords = keyword_relevance(filtered_articles)
+    if keywords:
+        df_kw = pd.DataFrame(keywords, columns=["Keyword", "Mentions"])
+        bar = (
+            alt.Chart(df_kw)
+            .mark_bar()
+            .encode(
+                x=alt.X("Mentions:Q", title="Mentions in view"),
+                y=alt.Y("Keyword:N", sort="-x", title=None),
+                tooltip=["Keyword:N", "Mentions:Q"],
+            )
+            .properties(height=300)
+        )
+        st.altair_chart(bar, use_container_width=True)
+    else:
+        st.info("No entities in the current view")
 
 st.divider()
 
