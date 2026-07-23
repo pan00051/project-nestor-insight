@@ -489,8 +489,8 @@ st.markdown(
       <div>
         <div class="nestor-title"><span class="brand-word">Nestor</span> Insight</div>
         <div class="nestor-hero-copy">
-          AI industry signal intelligence for BD and market analysis<br>
-          Turn AI industry noise into actionable market signals.
+          AI market intelligence for business development and strategy<br>
+          Find the companies, risks, and opportunities worth acting on.
         </div>
       </div>
     </div>
