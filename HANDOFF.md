@@ -71,8 +71,8 @@ st.session_state.view = {
 - **M4.2 — Entry points** ✅ DONE
   Focus Search wired to `search_query` (matches title + one_line_summary + entities). Quick View pills: meta-views (Top Signals, BD Opps) set `meta_view`; signal-type pills (Regulatory Risk, Competitor Moves, Funding & Startups, Product Launches) set `signal_types`. Search↔pill mutual exclusion enforced in callbacks. Global sentiment chart removed. Verified: default=119 ✅, search narrows ✅, pills narrow correctly ✅, mutual exclusion ✅.
 
-- **M4.3 — Signal Action Card**
-  Re-lay-out results as action cards using existing fields (`signal_type, target_persona, urgency, why_it_matters, business_implication, suggested_action`); footer `source · published_date · Read full article`; urgency color reads "act now" (accent), not "danger/error".
+- **M4.3 — Signal Action Card** ✅ DONE
+  Cards show: tags row (signal_type chip + persona chip + ⚑ High Priority), urgency badge top-right (amber 9-10 / blue 7-8 / slate 5-6, no red), title, one_line_summary, why + action always visible, business_implication in expander, footer `source · date · Read full article`. No "N sources" anywhere. Verified against 5 top-urgency cards.
 
 - **M4.4 — Visual panels**
   Bar → donut **Signal Lens** (display-only in v1, **no clickable-sector** master–detail; pills do the switching); **Keyword Relevance** panel (local frequency over `entities / title / one_line_summary`); **Market Tone** scoped to current view.
@@ -99,4 +99,4 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
 5. Close the session.
 
 ---
-*Last updated: end of M4.2 (Focus Search + Quick View pills; sentiment chart removed; verified & pushed).*
+*Last updated: end of M4.3 (Signal Action Cards; urgency accent scale; footer source·date·link; verified & pushed).*

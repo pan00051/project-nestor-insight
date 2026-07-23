@@ -82,6 +82,115 @@ PILL_OPTIONS = {
     "Product Launches":   {"type": "signal", "signal_type": "product_launch"},
 }
 
+# Human-readable labels for signal_type values
+SIGNAL_TYPE_LABELS = {
+    "product_launch":        "Product Launch",
+    "competitor_move":       "Competitor Move",
+    "funding_event":         "Funding",
+    "regulatory_risk":       "Regulatory Risk",
+    "enterprise_adoption":   "Enterprise Adoption",
+    "partnership":           "Partnership",
+    "market_expansion":      "Market Expansion",
+    "research_breakthrough": "Research Breakthrough",
+    "leadership_change":     "Leadership Change",
+    "pricing_change":        "Pricing Change",
+    "hiring_growth":         "Hiring Growth",
+    "security_incident":     "Security Incident",
+    "other":                 "Other",
+}
+
+
+def _urgency_color(u: int) -> str:
+    """Accent scale: amber = act now, blue = act soon, slate = monitor. Never red."""
+    if u >= 9: return "#F59E0B"   # amber
+    if u >= 7: return "#3B82F6"   # blue
+    if u >= 5: return "#64748B"   # slate
+    return "#94A3B8"              # muted
+
+
+def _chip(text: str, accent: bool = False) -> str:
+    border = "#F59E0B" if accent else "#64748B"
+    color  = "#F59E0B" if accent else "#64748B"
+    weight = "600" if accent else "400"
+    return (
+        f'<span style="border:1px solid {border};color:{color};padding:2px 9px;'
+        f'border-radius:999px;font-size:0.75rem;font-weight:{weight};white-space:nowrap">'
+        f'{text}</span>'
+    )
+
+
+def render_card(article: dict) -> None:
+    urgency     = article.get("urgency") or 0
+    signal_type = article.get("signal_type") or ""
+    persona     = (article.get("target_persona") or "").replace("_", " ")
+    high_prio   = is_high_priority(article)
+    sentiment   = article.get("sentiment") or "unknown"
+    sentiment_emoji = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}.get(sentiment, "⚪")
+    published   = (article.get("published_at") or "")[:10]
+    url         = article.get("url") or ""
+    source      = article.get("source") or ""
+
+    with st.container(border=True):
+        col_main, col_right = st.columns([5, 1])
+
+        with col_right:
+            color = _urgency_color(urgency)
+            st.markdown(
+                f'<div style="text-align:center;padding-top:8px">'
+                f'<span style="font-size:2rem;font-weight:700;color:{color}">{urgency}</span>'
+                f'<span style="font-size:0.85rem;color:#94A3B8">/10</span><br>'
+                f'<span style="font-size:0.65rem;color:#94A3B8;letter-spacing:0.08em;'
+                f'text-transform:uppercase">urgency</span><br><br>'
+                f'<span style="font-size:1.1rem">{sentiment_emoji}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        with col_main:
+            # Tags row
+            chips = []
+            if signal_type:
+                label = SIGNAL_TYPE_LABELS.get(signal_type, signal_type.replace("_", " ").title())
+                chips.append(_chip(label))
+            if persona:
+                chips.append(_chip(persona))
+            if high_prio:
+                chips.append(_chip("⚑ High Priority", accent=True))
+            if chips:
+                st.markdown(
+                    '<div style="margin-bottom:4px">' + "&nbsp;&nbsp;".join(chips) + "</div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Title + one-line summary
+            st.markdown(f"**{article.get('title') or '(no title)'}**")
+            summary = article.get("one_line_summary")
+            if summary:
+                st.caption(summary)
+
+            # Why it matters + Suggested action — always visible (key decisions)
+            why = article.get("why_it_matters")
+            if why:
+                st.markdown(f"⚡ **Why it matters** — {why}")
+            action = article.get("suggested_action")
+            if action:
+                st.markdown(f"→ **Suggested action** — {action}")
+
+            # Business implication — secondary, in expander to keep card scannable
+            implication = article.get("business_implication")
+            if implication:
+                with st.expander("Business implication"):
+                    st.write(implication)
+
+            # Footer: source · date · Read full article (no source count)
+            footer_parts = [p for p in [source, published] if p]
+            footer = " · ".join(footer_parts)
+            if url:
+                footer += f" · [Read full article →]({url})"
+            if footer:
+                st.caption(footer)
+
+
 # ── Central state (single source of truth for all filters) ───────────────────
 
 def init_state():
@@ -301,39 +410,4 @@ if not filtered_articles:
     st.info("No signals match your current filters.")
 else:
     for article in filtered_articles:
-        importance = article.get("importance") or 0
-        urgency = article.get("urgency") or 0
-        priority_score = urgency + importance
-        sentiment = article.get("sentiment") or "unknown"
-        sentiment_emoji = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}.get(sentiment, "⚪")
-        published = (article.get("published_at") or "")[:10]
-
-        with st.container(border=True):
-            col_main, col_meta = st.columns([4, 1])
-            with col_main:
-                st.markdown(f"**{article.get('title', '(no title)')}**")
-                summary = article.get("one_line_summary")
-                if summary:
-                    st.caption(summary)
-                why = article.get("why_it_matters")
-                if why:
-                    st.markdown(f"**Why it matters:** {why}")
-                implication = article.get("business_implication")
-                if implication:
-                    st.markdown(f"**Business implication:** {implication}")
-                action = article.get("suggested_action")
-                if action:
-                    st.markdown(f"**Suggested action:** {action}")
-                url = article.get("url", "")
-                source = article.get("source") or ""
-                st.caption(f"{source} · {published}" + (f" · [Read full article →]({url})" if url else ""))
-            with col_meta:
-                st.markdown(f"{sentiment_emoji} {sentiment}")
-                st.markdown(f"Score **{priority_score}**/20")
-                st.caption(f"U:{urgency} I:{importance}")
-                persona = article.get("target_persona")
-                if persona:
-                    st.caption(persona)
-                signal_type = article.get("signal_type")
-                if signal_type:
-                    st.caption(f"`{signal_type}`")
+        render_card(article)
