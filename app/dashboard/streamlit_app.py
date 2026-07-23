@@ -398,15 +398,16 @@ st.markdown(
     """
     <style>
       :root {
-        --nestor-ink: #2F3038;
-        --nestor-muted: #6B7280;
-        --nestor-soft: #8A8F9D;
+        --nestor-ink: #2B2B32;
+        --nestor-muted: #6F7480;
+        --nestor-soft: #8D94A1;
         --nestor-bronze: #9A6A35;
         --nestor-bronze-dark: #6F4A24;
+        --nestor-bronze-soft: #C8A16A;
       }
 
       .block-container {
-        padding-top: 1.75rem;
+        padding-top: 2.85rem;
         max-width: 1180px;
       }
 
@@ -423,32 +424,40 @@ st.markdown(
 
       .nestor-brand {
         display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin: 0.15rem 0 0.75rem 0;
+        align-items: flex-start;
+        gap: 1.05rem;
+        margin: 0.4rem 0 1.35rem 0;
       }
 
       .nestor-logo {
-        width: 4.85rem;
-        height: 4.85rem;
+        width: 4.65rem;
+        height: 4.65rem;
         object-fit: contain;
         flex: 0 0 auto;
+        margin-top: 0.15rem;
       }
 
       .nestor-title {
         color: var(--nestor-ink);
-        font-size: 3.35rem;
-        font-weight: 760;
-        line-height: 0.98;
+        font-size: 3.2rem;
+        font-weight: 820;
+        line-height: 1.14;
         letter-spacing: 0;
         margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      .nestor-title .brand-word {
+        color: var(--nestor-bronze-dark);
       }
 
       .nestor-hero-copy {
         color: var(--nestor-muted);
         font-size: 1.02rem;
-        line-height: 1.28;
-        margin: 0.45rem 0 1.1rem 0;
+        font-weight: 470;
+        line-height: 1.22;
+        margin: 0.12rem 0 0 0;
       }
 
       div[data-testid="stMetricLabel"] {
@@ -464,6 +473,12 @@ st.markdown(
       .stCaption, div[data-testid="stCaptionContainer"] {
         color: var(--nestor-muted);
       }
+
+      div[data-testid="stTextInput"] label,
+      div[data-testid="stToggle"] label {
+        color: var(--nestor-ink);
+        font-weight: 650;
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -473,7 +488,7 @@ st.markdown(
     <div class="nestor-brand">
       <img class="nestor-logo" src="{logo_data_uri()}" alt="Nestor Insight logo">
       <div>
-        <div class="nestor-title">Nestor Insight</div>
+        <div class="nestor-title"><span class="brand-word">Nestor</span> Insight</div>
         <div class="nestor-hero-copy">
           AI industry signal intelligence for BD and market analysis<br>
           Turn AI industry noise into actionable market signals.
@@ -577,10 +592,25 @@ with col_kw:
         df_kw = pd.DataFrame(keywords, columns=["Keyword", "Mentions"])
         bar = (
             alt.Chart(df_kw)
-            .mark_bar()
+            .mark_bar(cornerRadiusEnd=4)
             .encode(
                 x=alt.X("Mentions:Q", title="Signal mentions"),
                 y=alt.Y("Keyword:N", sort="-x", title=None),
+                color=alt.Color(
+                    "Keyword:N",
+                    scale=alt.Scale(
+                        range=[
+                            "#6F4A24",
+                            "#9A6A35",
+                            "#C8A16A",
+                            "#2F5F5B",
+                            "#546A7B",
+                            "#8D94A1",
+                            "#D6C4AA",
+                        ]
+                    ),
+                    legend=None,
+                ),
                 tooltip=["Keyword:N", "Mentions:Q"],
             )
             .properties(height=300)
