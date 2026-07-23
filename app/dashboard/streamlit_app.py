@@ -259,13 +259,41 @@ def fetch_stats() -> dict:
     return requests.get(f"{API_BASE}/events/stats", timeout=10).json()
 
 
+API_PAGE_SIZE = 100   # /events caps limit at 100 (le=100); paginate via offset
+
+
 @st.cache_data(ttl=60)
-def fetch_all_events(limit: int = 264) -> list[dict]:
-    """Fetch all analyzed events; client-side filtering applied after."""
-    result = requests.get(f"{API_BASE}/events", params={"limit": limit}, timeout=10).json()
-    if not isinstance(result, list):
-        return []
-    return result
+def fetch_all_events() -> list[dict]:
+    """Fetch ALL analyzed events by paginating through the API's offset param.
+
+    The /events endpoint caps `limit` at 100, so we page in chunks of
+    API_PAGE_SIZE and stop on the first short page. No server-side filter
+    params are sent — filtering is done client-side by apply_filters().
+    """
+    articles: list[dict] = []
+    offset = 0
+    while True:
+        resp = requests.get(
+            f"{API_BASE}/events",
+            params={"limit": API_PAGE_SIZE, "offset": offset},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"HTTP {resp.status_code} from /events "
+                f"(limit={API_PAGE_SIZE}, offset={offset}): {resp.text[:200]}"
+            )
+        page = resp.json()
+        if not isinstance(page, list):
+            raise RuntimeError(
+                f"Expected a list from /events, got {type(page).__name__}: "
+                f"{str(page)[:200]}"
+            )
+        articles.extend(page)
+        if len(page) < API_PAGE_SIZE:
+            break
+        offset += API_PAGE_SIZE
+    return articles
 
 
 def apply_filters(articles: list[dict]) -> list[dict]:

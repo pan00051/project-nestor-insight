@@ -74,6 +74,9 @@ st.session_state.view = {
 - **M4.3 — Signal Action Card** ✅ DONE
   Cards show: tags row (signal_type chip + persona chip + ⚑ High Priority), urgency badge top-right (amber 9-10 / blue 7-8 / slate 5-6, no red), title, one_line_summary, why + action always visible, business_implication in expander, footer `source · date · Read full article`. No "N sources" anywhere. Verified against 5 top-urgency cards.
 
+- **Bugfix (post-M4.3): empty working set on deploy** ✅ FIXED
+  Symptom: "No analyzed articles returned from API" banner; High Priority / New / Positive Tone = 0; stats KPI still 264. Root cause = client bug, NOT infra: `fetch_all_events` sent `limit=264`, but `/events` caps `limit` at 100 (`le=100`) → **HTTP 422** (dict, not list) → `isinstance` guard → empty set. `/events/stats` has no limit param so it stayed at 264 (explains the split). Fix (in `streamlit_app.py` only): paginate via the API's existing `offset` param in pages of `API_PAGE_SIZE=100`, stop on first short page; no server-side filter params. Non-200 or non-list now raises with `HTTP <status>` + first 200 chars so the banner is diagnosable. Verified against live API: 264 fetched, 0 dupes, High Priority=119.
+
 - **M4.4 — Visual panels**
   Bar → donut **Signal Lens** (display-only in v1, **no clickable-sector** master–detail; pills do the switching); **Keyword Relevance** panel (local frequency over `entities / title / one_line_summary`); **Market Tone** scoped to current view.
 
@@ -99,4 +102,4 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
 5. Close the session.
 
 ---
-*Last updated: end of M4.3 (Signal Action Cards; urgency accent scale; footer source·date·link; verified & pushed).*
+*Last updated: post-M4.3 bugfix (paginate /events via offset — limit=264 was 422ing; app recovered, 264 fetched).*
