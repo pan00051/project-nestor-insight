@@ -88,8 +88,11 @@ ANTHROPIC_API_KEY=your_anthropic_key
 # Collect news
 python -m app.collector.rss_collector
 
-# Run AI analysis
-python -m app.analyzer.ai_analyzer
+# Preview the next batch (no Claude calls or database writes)
+python -m app.analyzer.ai_analyzer --limit 100 --dry-run
+
+# Analyze the next relevant batch
+python -m app.analyzer.ai_analyzer --limit 100
 
 # Start API
 uvicorn app.api.main:app --port 8000
@@ -97,6 +100,10 @@ uvicorn app.api.main:app --port 8000
 # Start Dashboard
 streamlit run app/dashboard/streamlit_app.py
 ```
+
+The analyzer defaults to a 100-article batch and uses a local AI-relevance
+filter before making paid Claude calls. Use `--include-low-relevance` only when
+you intentionally want to analyze every pending article.
 
 ## Roadmap
 
