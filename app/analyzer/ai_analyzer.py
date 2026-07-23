@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Literal
@@ -72,6 +73,16 @@ SIGNAL_TYPE_FALLBACKS = {
 SENTIMENT_FALLBACKS = {
     "mixed": "neutral",
 }
+
+
+@dataclass
+class AnalysisRunSummary:
+    selected: int
+    skipped: int
+    success: int
+    failed: int
+    skip_write_failures: int
+    dry_run: bool
 
 # Strong terms can qualify an article alone. Supporting terms need a combination.
 STRONG_AI_TERMS = (
@@ -545,7 +556,14 @@ def run_analysis(
                 f"| {article['title'][:70]} | matches: {matches}"
             )
         print()
-        return
+        return AnalysisRunSummary(
+            selected=total,
+            skipped=len(status_updates),
+            success=0,
+            failed=0,
+            skip_write_failures=0,
+            dry_run=True,
+        )
 
     saved_skips, failed_skips = persist_skip_decisions(
         supabase_client,
@@ -559,7 +577,14 @@ def run_analysis(
 
     if total == 0:
         print("No relevant queued articles found.\n")
-        return
+        return AnalysisRunSummary(
+            selected=0,
+            skipped=saved_skips,
+            success=0,
+            failed=0,
+            skip_write_failures=failed_skips,
+            dry_run=False,
+        )
 
     claude_client = get_claude_client()
     print(
@@ -632,6 +657,14 @@ def run_analysis(
             time.sleep(0.5)
 
     print(f"\nCompleted: success={success}, failed={failed}\n")
+    return AnalysisRunSummary(
+        selected=total,
+        skipped=saved_skips,
+        success=success,
+        failed=failed,
+        skip_write_failures=failed_skips,
+        dry_run=False,
+    )
 
 
 def positive_int(value: str) -> int:
@@ -692,7 +725,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    run_analysis(
+    summary = run_analysis(
         limit=args.limit,
         min_relevance=args.min_relevance,
         include_low_relevance=args.include_low_relevance,
@@ -700,3 +733,5 @@ if __name__ == "__main__":
         reprocess_skipped=args.reprocess_skipped,
         dry_run=args.dry_run,
     )
+    if summary.failed or summary.skip_write_failures:
+        raise SystemExit(1)

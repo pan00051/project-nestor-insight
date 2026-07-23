@@ -556,8 +556,12 @@ if __name__ == "__main__":
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
-    run_collection(
+    summary = run_collection(
         feeds=chosen_feeds,
         max_per_feed=args.max_per_feed,
         dry_run=args.dry_run,
     )
+    if summary.failed_sources or any(
+        result.write_failures for result in summary.results
+    ):
+        raise SystemExit(1)

@@ -182,5 +182,24 @@ Where the render conflicts with Section 4, **the decisions win.** Known deltas t
     chart totals remain accurate beyond the platform's default 1,000-row
     response cap. The Dashboard's existing `/events` pagination is unchanged.
 
+- **M5.5 — Automated pipeline operations** ✅ CODE COMPLETE
+  - Added `python -m app.pipeline` as the single collection → analysis entry
+    point, with dry-run, source selection, analysis budget, retry-failed
+    behavior, and a nonblocking file lock.
+  - Collector and analyzer CLIs now exit nonzero when source, write, analysis,
+    or status-persistence failures occur, allowing schedulers to detect a
+    failed run.
+  - Added `railway.cron.json`: a separate Railway Cron Service can run daily at
+    06:15 UTC, execute `python -m app.pipeline --analysis-limit 100`, retry one
+    failed deployment, and then exit.
+  - Railway activation requires one-time dashboard configuration: create a
+    second service from the same repository, set config path to
+    `/railway.cron.json`, and reuse the API service's `SUPABASE_URL`,
+    `SUPABASE_KEY`, and `ANTHROPIC_API_KEY` variables.
+  - Production acceptance: all 10 feeds healthy; 192 entries scanned; 21 new
+    rows inserted; 18 low-relevance rows skipped before Claude; 3/3 relevant
+    rows analyzed successfully. Final state: 1,474 total = 1,331 analyzed +
+    143 skipped, with pending=0 and failed=0.
+
 ---
-*Last updated: Sprint 5 M5.4 (1,000 historical articles processed and verified).*
+*Last updated: Sprint 5 M5.5 (automated pipeline code complete; Railway cron activation pending).*

@@ -117,6 +117,12 @@ python -m app.analyzer.ai_analyzer --limit 100 --dry-run
 # Analyze the next relevant batch
 python -m app.analyzer.ai_analyzer --limit 100
 
+# Preview collection and analysis together
+python -m app.pipeline --dry-run --analysis-limit 100
+
+# Run collection followed by analysis
+python -m app.pipeline --analysis-limit 100
+
 # Start API
 uvicorn app.api.main:app --port 8000
 
@@ -140,9 +146,16 @@ GDELT date-window importer is also available as
 rate limits. Imported rows enter the persistent `pending` analysis queue; run
 the analyzer separately after checking the import summary.
 
+The Railway cron configuration is defined in `railway.cron.json`. Create a
+second Railway service from this repository, set its config file path to
+`/railway.cron.json`, and give it the same `SUPABASE_URL`, `SUPABASE_KEY`, and
+`ANTHROPIC_API_KEY` variables as the API service. It runs daily at 06:15 UTC.
+Railway skips overlapping cron executions, and the pipeline also uses a local
+file lock.
+
 ## Roadmap
 
-- [ ] Automated scheduling (APScheduler)
+- [x] Automated daily collection and analysis
 - [ ] Semantic search (pgvector + RAG)
 - [ ] Company signal pages
 - [ ] Weekly BD intelligence digest
